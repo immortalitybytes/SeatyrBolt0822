@@ -380,7 +380,7 @@ const ConstraintManager: React.FC = () => {
           className={`
             p-2 font-medium sticky top-0 z-20 min-w-[100px] cursor-pointer transition-colors duration-200
             border border-[#586D78] border-2
-            ${isHighlighted ? 'bg-yellow-300' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
+            ${isHighlighted ? 'bg-[#88abc6]' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
           `}
           onDoubleClick={() => handleGuestSelect(guest.name)}
           onTouchStart={(e) => handleLongPress(e, guest.name)}
@@ -456,7 +456,7 @@ const ConstraintManager: React.FC = () => {
           className={`
             p-2 font-medium sticky left-0 z-10 min-w-[140px] cursor-pointer transition-colors duration-200
             border border-[#586D78] border-2
-            ${isHighlighted ? 'bg-yellow-300' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
+            ${isHighlighted ? 'bg-[#88abc6]' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
           `}
           onDoubleClick={() => handleGuestSelect(guest1.name)}
           onTouchStart={(e) => handleLongPress(e, guest1.name)}
@@ -529,7 +529,7 @@ const ConstraintManager: React.FC = () => {
              (highlightedPair.guest1 === guest2.name && highlightedPair.guest2 === guest1.name));
           
           if (isCellHighlighted) {
-            bgColor = 'bg-yellow-300';
+            bgColor = 'bg-[#88abc6]';
           }
           
           row.push(
@@ -665,9 +665,9 @@ const ConstraintManager: React.FC = () => {
     return (
       <div className="flex flex-col space-y-4">
         {showPerformanceWarning && (
-          <div className="bg-amber-50 border border-[#586D78] rounded-md p-4 flex items-start">
-            <AlertCircle className="text-amber-500 mr-2 flex-shrink-0 mt-1" />
-            <div className="text-sm text-amber-800">
+                  <div className="bg-[#88abc6] border border-[#586D78] rounded-md p-4 flex items-start">
+          <AlertCircle className="text-white mr-2 flex-shrink-0 mt-1" />
+          <div className="text-sm text-white">
               <p className="font-medium">Performance Notice</p>
               <p>You have {state.guests.length} guests, which may cause the constraint grid to be slow to render and interact with.</p>
               <p className="mt-1">For better performance, consider working with smaller groups of guests.</p>

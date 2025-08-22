@@ -274,7 +274,7 @@ const ConstraintManager: React.FC = () => {
           className={`
             p-2 font-medium sticky top-0 z-20 min-w-[100px] cursor-pointer transition-colors duration-200
             border border-[#586D78] border-2
-            ${isHighlighted ? 'bg-yellow-300' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
+            ${isHighlighted ? 'bg-[#88abc6]' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
           `}
           onDoubleClick={() => handleGuestSelect(guest.name)}
           onTouchStart={(e) => handleLongPress(e, guest.name)}
@@ -350,7 +350,7 @@ const ConstraintManager: React.FC = () => {
           className={`
             p-2 font-medium sticky left-0 z-10 min-w-[140px] cursor-pointer transition-colors duration-200
             border border-[#586D78] border-2
-            ${isHighlighted ? 'bg-yellow-300' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
+            ${isHighlighted ? 'bg-[#88abc6]' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'}
           `}
           onDoubleClick={() => handleGuestSelect(guest1.name)}
           onTouchStart={(e) => handleLongPress(e, guest1.name)}
@@ -423,7 +423,7 @@ const ConstraintManager: React.FC = () => {
              (highlightedPair.guest1 === guest2.name && highlightedPair.guest2 === guest1.name));
           
           if (isCellHighlighted) {
-            bgColor = 'bg-yellow-300';
+            bgColor = 'bg-[#88abc6]';
           }
           
           row.push(
@@ -559,9 +559,9 @@ const ConstraintManager: React.FC = () => {
     return (
       <div className="flex flex-col space-y-4">
         {showPerformanceWarning && (
-          <div className="bg-amber-50 border border-[#586D78] rounded-md p-4 flex items-start">
-            <AlertCircle className="text-amber-500 mr-2 flex-shrink-0 mt-1" />
-            <div className="text-sm text-amber-800">
+                  <div className="bg-[#88abc6] border border-[#586D78] rounded-md p-4 flex items-start">
+          <AlertCircle className="text-white mr-2 flex-shrink-0 mt-1" />
+          <div className="text-sm text-white">
               <p className="font-medium">Performance Notice</p>
               <p>You have {state.guests.length} guests, which may cause the constraint grid to be slow to render and interact with.</p>
               <p className="mt-1">For better performance, consider working with smaller groups of guests.</p>
@@ -570,13 +570,13 @@ const ConstraintManager: React.FC = () => {
         )}
         
         {needsPagination && (
-          <div className={`border border-[#586D78] rounded-md transition-all ${isWarningExpanded ? 'bg-amber-50 p-4' : 'bg-amber-50/50 px-4 py-2'}`}>
-            <div className="flex justify-between items-center">
-              <div className="flex items-center">
-                {isWarningExpanded ? (
-                  <AlertCircle className="text-amber-500 mr-2 flex-shrink-0" />
-                ) : null}
-                <p className={`text-sm ${isWarningExpanded ? 'text-amber-800' : 'text-amber-600'}`}>
+                  <div className={`border border-[#586D78] rounded-md transition-all ${isWarningExpanded ? 'bg-[#88abc6] p-4' : 'bg-[#88abc6]/50 px-4 py-2'}`}>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              {isWarningExpanded ? (
+                <AlertCircle className="text-white mr-2 flex-shrink-0" />
+              ) : null}
+              <p className={`text-sm ${isWarningExpanded ? 'text-white' : 'text-white'}`}>
                   {isWarningExpanded ? 'Large Guest List Detected' : 'Large Guest List Pagination'}
                 </p>
               </div>
@@ -585,7 +585,7 @@ const ConstraintManager: React.FC = () => {
                 {isWarningExpanded ? (
                   <button
                     onClick={handleToggleWarning}
-                    className="text-amber-600 hover:text-amber-800"
+                    className="text-white hover:text-white"
                     aria-label="Collapse warning"
                   >
                     <X className="w-4 h-4" />
@@ -593,7 +593,7 @@ const ConstraintManager: React.FC = () => {
                 ) : (
                   <button
                     onClick={handleToggleWarning}
-                    className="text-amber-600 hover:text-amber-800"
+                    className="text-white hover:text-white"
                     aria-label="Expand warning"
                   >
                     <ChevronDown className="w-4 h-4" />
@@ -603,7 +603,7 @@ const ConstraintManager: React.FC = () => {
             </div>
             
             {isWarningExpanded && (
-              <div className="mt-2 text-sm text-amber-800">
+              <div className="mt-2 text-sm text-white">
                 <p>To improve performance, the constraint grid shows 10 columns at a time.</p>
                 <p>Scroll vertically and use the navigation buttons below to see all guests.</p>
               </div>

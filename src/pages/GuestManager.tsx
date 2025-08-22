@@ -654,7 +654,7 @@ const GuestManager: React.FC = () => {
   };
 
   const loadTestGuestList = () => {
-    const testList = "Michael & Enid Abrams, Sarah & Rachel & Billy Williams, David Chen & Jessica Brown, Christopher Davis, Ashley Miller & Plus One, Matthew Wilson & Amanda Moore, Joshua Taylor & Guest, Jennifer& Andrew &Thomas Bhasin, Elizabeth Jackson, Daniel White, Emily Harris and James Martin, Li Thompson, Robert Garcia, Nicole Martinez, John Jose Rodriguez, Stephanie Lewis, William Lee & Rachel Walker, Thomas Hall and Lauren Allen & Kid1 & Kid2, Richard Bryan %Marx Young, Samantha King+2, Charles Wright, Michelle Lopez, Joseph Scott, Kimberly Green, Mark Adams, Lisa Baker, Steven Gonzalez";
+    const testList = "Michael & Enid Lawrence, Sarah & Rachel & Billy Williams, David Chen & Jessica Brown, Christopher Davis, Ashley Miller & Plus One, Matthew Wilson & Amanda Moore, Joshua Taylor & Guest, Jennifer& Andrew &Thomas Bhasin, Elizabeth Jackson, Daniel White, Emily Harris and James Martin, Li Thompson, Robert Garcia, Nicole Martinez, John Jose Rodriguez, Stephanie Lewis, William Lee & Rachel Walker, Thomas Hall and Lauren Allen & Kid1 & Kid2, Richard Bryan %Marx Young, Samantha King+2, Charles Wright, Michelle Lopez, Joseph Scott, Kimberly Green, Mark Adams, Lisa Baker, Steven Gonzalez";
     const testGuests = parseGuestInput(testList);
     
     const isPremium = isPremiumSubscription(subscription);
@@ -872,21 +872,21 @@ const GuestManager: React.FC = () => {
                 <p className="text-gray-700 text-[17px]">Connect couples and parties with an ampersand (&).</p>
                 
                 {!isPremium && (
-                  <div className={`mt-2 ${isApproachingLimit ? 'text-amber-600 font-medium' : 'text-sm text-[#586D78]'}`}>
-                    <p>Free plan: {getGuestLimitMessage(subscription, state.guests.length)}</p>
-                    {isApproachingLimit && (
-                      <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                        <div 
-                          className={`h-2 rounded-full ${
-                            guestPercentage >= 95 ? 'bg-red-500' : 
-                            guestPercentage >= 80 ? 'bg-amber-500' : 
-                            'bg-green-500'
-                          }`}
-                          style={{ width: `${guestPercentage}%` }}
-                        ></div>
-                      </div>
-                    )}
-                  </div>
+                                  <div className={`mt-2 ${isApproachingLimit ? 'text-[#88abc6] font-medium' : 'text-sm text-[#586D78]'}`}>
+                  <p>Free plan: {getGuestLimitMessage(subscription, state.guests.length)}</p>
+                  {isApproachingLimit && (
+                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                      <div 
+                        className={`h-2 rounded-full ${
+                          guestPercentage >= 95 ? 'bg-red-500' : 
+                          guestPercentage >= 80 ? 'bg-[#88abc6]' : 
+                          'bg-green-500'
+                        }`}
+                        style={{ width: `${guestPercentage}%` }}
+                      ></div>
+                    </div>
+                  )}
+                </div>
                 )}
                 
                 {isPremium && state.user && (
@@ -898,15 +898,15 @@ const GuestManager: React.FC = () => {
               
               {/* Display duplicate guest warning */}
               {showDuplicateWarning && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md relative">
+                <div className="p-3 bg-[#88abc6] border border-[#88abc6] rounded-md relative">
                   <div className="flex items-start pr-8">
-                    <AlertCircle className="text-amber-600 mr-2 mt-0.5 flex-shrink-0" />
+                    <AlertCircle className="text-white mr-2 mt-0.5 flex-shrink-0" />
                     <div>
-                      <p className="text-amber-700 font-medium">Duplicate Guest Names Detected</p>
-                      <p className="text-amber-600 text-sm">
+                      <p className="text-white font-medium">Duplicate Guest Names Detected</p>
+                      <p className="text-white text-sm">
                         The following names already exist in your guest list and were not added:
                       </p>
-                      <ul className="text-amber-600 text-sm mt-1 list-disc pl-5">
+                      <ul className="text-white text-sm mt-1 list-disc pl-5">
                         {duplicateGuests.map((name, index) => (
                           <li key={index}>{name}</li>
                         ))}
@@ -914,7 +914,7 @@ const GuestManager: React.FC = () => {
                     </div>
                   </div>
                   <button
-                    className="absolute top-2 right-2 text-amber-600 hover:text-amber-800"
+                    className="absolute top-2 right-2 text-white hover:text-white"
                     onClick={handleCloseDuplicateWarning}
                     aria-label="Close warning"
                   >
@@ -980,8 +980,8 @@ const GuestManager: React.FC = () => {
               </div>
               
               {!isPremium && state.guests.length >= maxGuestLimit && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md">
-                  <p className="text-amber-700 font-medium">
+                <div className="p-3 bg-[#88abc6] border border-[#88abc6] rounded-md">
+                  <p className="text-white font-medium">
                     You've reached the guest limit of {maxGuestLimit} for free accounts. 
                     Upgrade to Premium for unlimited guests.
                   </p>
@@ -1118,9 +1118,9 @@ const GuestManager: React.FC = () => {
       {/* Table Reduction Notice */}
       {showReduceNotice && (
         <Card>
-          <div className="bg-amber-50 border border-amber-200 rounded-md p-4">
+          <div className="bg-[#88abc6] border border-[#88abc6] rounded-md p-4">
             <div className="flex justify-between items-start">
-              <h3 className="text-amber-700 font-medium">Table Reduction Available</h3>
+              <h3 className="text-white font-medium">Table Reduction Available</h3>
               <button
                 onClick={handleDismissReduceNotice}
                 className="danstyle1c-btn"
@@ -1130,11 +1130,11 @@ const GuestManager: React.FC = () => {
               </button>
             </div>
             <div className="space-y-2 mt-2">
-              <p className="text-amber-700">
+              <p className="text-white">
                 <strong>Current Number of Tables:</strong> {state.tables.length}
               </p>
-              <div className="border-t border-amber-200 my-2"></div>
-              <p className="text-amber-700">
+              <div className="border-t border-[#88abc6] my-2"></div>
+              <p className="text-white">
                 <strong>Possible Minimum Number of Tables:</strong> {tableInfo.minTablesNeeded}
               </p>
             </div>

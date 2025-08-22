@@ -2,13 +2,13 @@ import React from 'react';
 
 const FallbackPage: React.FC = () => {
   return (
-    <div className="min-h-screen bg-indigo-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#dde1e3] flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-md p-6 max-w-lg w-full">
         <h1 className="text-2xl font-bold text-[#7973BB] mb-4">Seatyr - Configuration Needed</h1>
         
-        <div className="bg-amber-50 border border-amber-200 rounded-md p-4 mb-6">
-          <h2 className="text-lg font-semibold text-amber-800 mb-2">Missing Environment Configuration</h2>
-          <p className="text-amber-700">
+        <div className="bg-[#88abc6] border border-[#88abc6] rounded-md p-4 mb-6">
+          <h2 className="text-lg font-semibold text-white mb-2">Missing Environment Configuration</h2>
+          <p className="text-white">
             The application is missing required environment variables. This is typically needed for the first setup.
           </p>
         </div>

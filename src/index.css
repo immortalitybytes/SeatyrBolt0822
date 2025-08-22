@@ -53,10 +53,10 @@
   height: 38.4px !important;
   padding: 0 0.9em !important;
   
-  /* Yellow background with Marble Blue text and border */
-  background: #FFFFFF !important;
-  color: #586D78 !important;
-  border: 1px solid #586D78 !important;
+  /* Medium Forest Green background with Green White text and border */
+  background: #2d702c !important;
+  color: #DBF0DA !important;
+  border: 1px solid #DBF0DA !important;
   
   /* No effects */
   box-shadow: none !important;
@@ -69,7 +69,7 @@
 .danstyle1c-premium:hover {
   transform: none !important;
   box-shadow: none !important;
-  background: #FFFFFF !important;
+  background: #2d702c !important;
 }
 
 /* Remove (danger) override */

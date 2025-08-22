@@ -451,7 +451,7 @@ const SeatingPlanViewer: React.FC = () => {
                         className={`p-2 border ${
                           guest ? 'border-indigo-200' : 'border-gray-200'
                         } ${
-                          state.assignments[guest?.name] ? 'bg-amber-50' : 
+                          state.assignments[guest?.name] ? 'bg-[#88abc6]' : 
                           isEmptySeat ? 'bg-gray-50' : 'bg-white'
                         }`}
                       >
@@ -478,7 +478,7 @@ const SeatingPlanViewer: React.FC = () => {
                             </div>
 
                             {adjacentGuestsAtTable.length > 0 && (
-                              <div className="text-xs text-amber-600 mt-1">
+                              <div className="text-xs text-white mt-1">
                                 Adjacent to: {adjacentGuestsAtTable.join(', ')}
                               </div>
                             )}
