@@ -1,0 +1,157 @@
+/* Basic Tailwind setup assumed */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ZoeStyle1a: Capsule, solid, Marble Blue theme, with specified glows */
+.danstyle1c-btn {
+  background: #EBECE6; /* Oyster background */
+  color: #586D78; /* Marble Blue text */
+  border: 1px solid #586D78; /* Marble Blue border */
+  border-radius: 9999px;
+  box-shadow: 0 5px 5px 0 #323F4F; /* Default: 5px Cobalt Blue */
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0 1.6em;
+  min-width: 7em;
+  min-height: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: 
+    box-shadow 0.18s cubic-bezier(.4,0,.2,1), 
+    transform 0.15s cubic-bezier(.4,0,.2,1), 
+    background 0.18s cubic-bezier(.4,0,.2,1), 
+    color 0.18s cubic-bezier(.4,0,.2,1);
+}
+
+.danstyle1c-btn:hover, .danstyle1c-btn:focus-visible {
+  transform: scale(1.1); /* 110% of normal size on hover */
+  box-shadow: 0 9px 9px 0 #00FFFF; /* Hover: 9px Cyan */
+  outline: none;
+}
+
+.danstyle1c-btn.selected, .danstyle1c-btn[aria-current="page"] {
+  background: #586D78; /* Marble Blue background when selected */
+  color: #EBECE6; /* Oyster text when selected */
+  border-color: #586D78; /* Keep Marble Blue border */
+}
+
+.danstyle1c-btn:active {
+  filter: brightness(0.96);
+}
+
+/* Premium badge override */
+.danstyle1c-premium {
+  /* Slightly rounded rectangle instead of capsule */
+  border-radius: 8px !important;
+  
+  /* 20% size reduction with 30% less padding */
+  min-width: 5.6em !important;
+  min-height: 38.4px !important;
+  height: 38.4px !important;
+  padding: 0 0.9em !important;
+  
+  /* Yellow background with Marble Blue text and border */
+  background: #FFFFFF !important;
+  color: #586D78 !important;
+  border: 1px solid #586D78 !important;
+  
+  /* No effects */
+  box-shadow: none !important;
+  transform: none !important;
+  
+  /* Slightly reduced font size (but not as much as the overall size reduction) */
+  font-size: 0.9rem !important;
+}
+
+.danstyle1c-premium:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  background: #FFFFFF !important;
+}
+
+/* Remove (danger) override */
+.danstyle1c-remove {
+  background: #CD1C18 !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Multicolor glow animation for non-logged in users */
+@keyframes glow-multicolor {
+  0%, 100% {
+    box-shadow: 0 0 50px 10px #fff;
+  }
+  16% {
+    box-shadow: 0 0 50px 10px #28C520;
+  }
+  32% {
+    box-shadow: 0 0 50px 10px #fff;
+  }
+  48% {
+    box-shadow: 0 0 50px 10px #0433FF;
+  }
+  64% {
+    box-shadow: 0 0 50px 10px #fff;
+  }
+  80% {
+    box-shadow: 0 0 50px 10px #00FDFF;
+  }
+}
+
+.visitor-test-button {
+  animation: glow-multicolor 15s infinite;
+}
+
+/* Small buttons for rename/remove in guest list and table management */
+.btn-small {
+  min-width: 4.55em !important; /* 35% smaller than 7em */
+  min-height: 31.2px !important; /* 35% smaller than 48px */
+  height: 31.2px !important; /* 35% smaller than 48px */
+  padding: 0 0.8em !important; /* 50% less padding */
+  font-size: 0.7rem !important; /* 70% of original font size */
+}
+
+.btn-small svg {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+/* Password reset highlight animation */
+@keyframes highlight-password-section {
+  0% {
+    background-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  16% {
+    background-color: rgba(40, 197, 32, 0.2);
+    box-shadow: 0 0 10px rgba(40, 197, 32, 0.5);
+  }
+  32% {
+    background-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  48% {
+    background-color: rgba(4, 51, 255, 0.2);
+    box-shadow: 0 0 10px rgba(4, 51, 255, 0.5);
+  }
+  64% {
+    background-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+  80% {
+    background-color: rgba(0, 255, 255, 0.2);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+  }
+  100% {
+    background-color: rgba(255, 255, 255, 0);
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.password-reset-highlight {
+  animation: highlight-password-section 5s ease-in-out;
+}
