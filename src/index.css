@@ -11,11 +11,11 @@
   border-radius: 9999px;
   box-shadow: 0 5px 5px 0 #323F4F; /* Default: 5px Cobalt Blue */
   font-weight: 600;
-  font-size: 1rem;
-  padding: 0 1.6em;
-  min-width: 7em;
-  min-height: 48px;
-  height: 48px;
+  font-size: 0.75rem; /* Reduced by 25% from 1rem */
+  padding: 0 1.2em; /* Reduced by 25% from 1.6em */
+  min-width: 5.25em; /* Reduced by 25% from 7em */
+  min-height: 36px; /* Reduced by 25% from 48px */
+  height: 36px; /* Reduced by 25% from 48px */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -30,6 +30,34 @@
   transform: scale(1.1); /* 110% of normal size on hover */
   box-shadow: 0 9px 9px 0 #00FFFF; /* Hover: 9px Cyan */
   outline: none;
+}
+
+/* Button label wrapping with reduced line spacing */
+.danstyle1c-btn {
+  line-height: 1.2; /* Reduced line spacing for wrapped labels */
+}
+
+/* Animated arrow for first-time users */
+.animated-arrow {
+  position: absolute;
+  width: 200px;
+  height: 100px;
+  border: 2px solid #566F9B;
+  border-top: none;
+  border-right: none;
+  border-radius: 0 0 0 100px;
+  animation: arrow-stretch 2s ease-in-out infinite;
+}
+
+@keyframes arrow-stretch {
+  0%, 100% {
+    width: 200px;
+    height: 100px;
+  }
+  50% {
+    width: 250px;
+    height: 120px;
+  }
 }
 
 .danstyle1c-btn.selected, .danstyle1c-btn[aria-current="page"] {

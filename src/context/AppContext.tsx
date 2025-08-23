@@ -39,6 +39,7 @@ type AppAction =
   | { type: 'ADD_GUESTS'; payload: Guest[] }
   | { type: 'REMOVE_GUEST'; payload: number }
   | { type: 'RENAME_GUEST'; payload: { index: number; name: string } }
+  | { type: 'UPDATE_GUEST_COUNT'; payload: { index: number; count: number } }
   | { type: 'CLEAR_GUESTS' }
   | { type: 'SET_GUESTS'; payload: Guest[] }
   | { type: 'SET_CONSTRAINT'; payload: { guest1: string; guest2: string; value: 'must' | 'cannot' | '' } }
@@ -240,6 +241,23 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         constraints: newConstraints,
         adjacents: newAdjacents,
         assignments: newAssignments,
+      };
+      break;
+    }
+    case 'UPDATE_GUEST_COUNT': {
+      const { index, count } = action.payload;
+      const newGuests = [...state.guests];
+      
+      if (index < 0 || index >= newGuests.length) {
+        console.warn(`UPDATE_GUEST_COUNT: invalid index ${index}`);
+        return state;
+      }
+      
+      newGuests[index] = { ...newGuests[index], count };
+      
+      newState = {
+        ...state,
+        guests: newGuests,
       };
       break;
     }

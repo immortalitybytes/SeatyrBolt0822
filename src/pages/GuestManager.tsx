@@ -616,10 +616,23 @@ const GuestManager: React.FC = () => {
     }
     const parsed = parseGuestInput(editingGuestName)[0];
     if (parsed) {
+      // Automatically update seat count when guest name changes
+      const newCount = parsed.count;
+      const currentGuest = state.guests[index];
+      
       dispatch({
         type: 'RENAME_GUEST',
         payload: { index, name: parsed.name }
       });
+      
+      // Update seat count if it changed
+      if (newCount !== currentGuest.count) {
+        dispatch({
+          type: 'UPDATE_GUEST_COUNT',
+          payload: { index, count: newCount }
+        });
+      }
+      
       purgeSeatingPlans();
       setLocalDuplicateGuests([]);
       dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
@@ -816,51 +829,59 @@ const GuestManager: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Video Section with Collapse/Expand */}
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        {videoVisible ? (
-          <div className="relative">
-            <div className="relative w-full pt-[37.5%] overflow-hidden">
-              <iframe
-                ref={videoRef}
-                src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
-                allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
-                title="SeatyrBannerV1cVideo"
-                className="absolute top-0 left-0 w-full h-full"
-              />
+      <div className="flex justify-between items-start gap-4">
+        {/* For First-Time Users Box */}
+        <div className="w-1/4 bg-white rounded-lg shadow-md p-4 border border-[#566F9B]">
+          <h3 className="font-bold text-[#566F9B] mb-3">FOR FIRST-TIME USERS:</h3>
+          <div className="space-y-2 text-sm text-[#566F9B]">
+            <p>1.) Click "Load Test Guest List" below.</p>
+            <p>2.) Click "Your Rules" at the top.</p>
+            <p>3.) Pair and prevent as you like.</p>
+          </div>
+        </div>
+        
+        {/* Video Section - Reduced to 75% width */}
+        <div className="w-3/4 bg-white rounded-lg shadow-md overflow-hidden">
+          {videoVisible ? (
+            <div className="relative">
+              <div className="relative w-full pt-[37.5%] overflow-hidden">
+                <iframe
+                  ref={videoRef}
+                  src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
+                  allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
+                  title="SeatyrBannerV1cVideo"
+                  className="absolute top-0 left-0 w-full h-full"
+                />
+              </div>
+              <button 
+                onClick={toggleVideo}
+                className="danstyle1c-btn absolute top-2 right-2"
+                aria-label="Hide video section"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Hide Section
+              </button>
             </div>
-            <button 
-              onClick={toggleVideo}
-              className="danstyle1c-btn absolute top-2 right-2"
-              aria-label="Hide video section"
-            >
-              <X className="w-4 h-4 mr-2" />
-              Hide Section
-            </button>
-          </div>
-        ) : (
-          <div className="p-4 flex justify-end items-center">
-            <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
-            <button 
-              onClick={toggleVideo}
-              className="danstyle1c-btn"
-              aria-label="Replay video"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Replay Video
-            </button>
-          </div>
-        )}
+          ) : (
+            <div className="p-4 flex justify-end items-center">
+              <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
+              <button 
+                onClick={toggleVideo}
+                className="danstyle1c-btn"
+                aria-label="Replay video"
+              >
+                <Play className="w-4 h-4 mr-2" />
+                Replay Video
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <Users className="mr-2" />
         Guest Manager
-        {isPremium && state.user && (
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2">
-            <Crown className="w-4 h-4 mr-1" />
-            Premium
-          </span>
-        )}
+
       </h1>
       
       <div className="flex items-start justify-between gap-4">
@@ -953,6 +974,18 @@ const GuestManager: React.FC = () => {
                 <div className="text-red-600 text-sm mt-2">{importError}</div>
               )}
               
+              {/* Animated Arrow */}
+              <div className="relative mb-4">
+                <div 
+                  className="animated-arrow"
+                  style={{
+                    left: '25%',
+                    top: '-80px',
+                    transform: 'rotate(-45deg)'
+                  }}
+                ></div>
+              </div>
+              
               <div className="flex space-x-2">
                 <button
                   onClick={loadTestGuestList}
@@ -994,7 +1027,7 @@ const GuestManager: React.FC = () => {
 
       {/* MainSavedSettings collapsible section - Always present */}
       <button
-        className="danstyle1c-btn w-full flex justify-between items-center"
+        className="bg-indigo-50 border border-indigo-200 rounded-md p-3 w-full flex justify-between items-center hover:bg-indigo-100 transition-colors cursor-pointer"
         onClick={() => {
           // When opening, fetch the latest data
           if (!showSavedSettings && user) {
@@ -1003,11 +1036,11 @@ const GuestManager: React.FC = () => {
           setShowSavedSettings(!showSavedSettings);
         }}
       >
-        <span><FolderOpen className="w-4 h-4 mr-2 inline-block" /> Saved Settings</span>
+        <span className="text-[#586D78] font-medium"><FolderOpen className="w-4 h-4 mr-2 inline-block" /> Saved Settings</span>
         {showSavedSettings ? (
-          <ChevronUp className="w-4 h-4" />
+          <ChevronUp className="w-4 h-4 text-[#586D78]" />
         ) : (
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="w-4 h-4 text-[#586D78]" />
         )}
       </button>
 
@@ -1115,40 +1148,7 @@ const GuestManager: React.FC = () => {
         </Card>
       )}
 
-      {/* Table Reduction Notice */}
-      {showReduceNotice && (
-        <Card>
-          <div className="bg-[#88abc6] border border-[#88abc6] rounded-md p-4">
-            <div className="flex justify-between items-start">
-              <h3 className="text-white font-medium">Table Reduction Available</h3>
-              <button
-                onClick={handleDismissReduceNotice}
-                className="danstyle1c-btn"
-                aria-label="Dismiss notice"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-2 mt-2">
-              <p className="text-white">
-                <strong>Current Number of Tables:</strong> {state.tables.length}
-              </p>
-              <div className="border-t border-[#88abc6] my-2"></div>
-              <p className="text-white">
-                <strong>Possible Minimum Number of Tables:</strong> {tableInfo.minTablesNeeded}
-              </p>
-            </div>
-            <div className="flex space-x-2 mt-3">
-              <button
-                className="danstyle1c-btn"
-                onClick={handleReduceTables}
-              >
-                Reduce Tables
-              </button>
-            </div>
-          </div>
-        </Card>
-      )}
+
       
       <Card 
         title={

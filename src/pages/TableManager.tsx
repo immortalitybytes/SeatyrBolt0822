@@ -369,12 +369,7 @@ const TableManager: React.FC = () => {
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <TableIcon className="mr-2" />
         Tables
-        {isPremium && state.user && (
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2">
-            <Crown className="w-4 h-4 mr-1" />
-            Premium
-          </span>
-        )}
+
       </h1>
       
       {/* Tables Section - Accordion */}
@@ -427,37 +422,7 @@ const TableManager: React.FC = () => {
                 </div>
                 
                 {/* Table Reduction Notice - Right Justified */}
-                {showReduceNotice && (
-                  <div className="w-5/12 bg-amber-50 border border-amber-200 rounded-md p-4 ml-auto">
-                    <div className="flex justify-between items-start">
-                      <h3 className="text-amber-700 font-medium">Table Reduction Available</h3>
-                      <button
-                        onClick={handleDismissReduceNotice}
-                        className="danstyle1c-btn"
-                        aria-label="Dismiss notice"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="space-y-2 mt-2">
-                      <p className="text-amber-700">
-                        <strong>Current Number of Tables:</strong> {state.tables.length}
-                      </p>
-                      <div className="border-t border-amber-200 my-2"></div>
-                      <p className="text-amber-700">
-                        <strong>Possible Minimum Number of Tables:</strong> {tableInfo.minTablesNeeded}
-                      </p>
-                    </div>
-                    <div className="flex space-x-2 mt-3">
-                      <button
-                        className="danstyle1c-btn"
-                        onClick={handleReduceTables}
-                      >
-                        Reduce Tables
-                      </button>
-                    </div>
-                  </div>
-                )}
+                
               </div>
             </Card>
             

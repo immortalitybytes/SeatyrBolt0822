@@ -81,22 +81,14 @@ const ConstraintManager: React.FC = () => {
     updateConflicts();
   }, [state.guests, state.constraints, state.tables, state.adjacents, updateConflicts]);
 
-  // Smart suggestions based on current state
+  // Smart suggestions based on current state (only show conflict resolution)
   const smartSuggestions = useMemo((): string[] => {
     const suggestions: string[] = [];
     if (conflicts.length > 0) {
       suggestions.push(`Resolve ${conflicts.length} constraint conflicts to improve seating generation.`);
     }
-    const constraintCount = Object.keys(state.constraints).reduce((count, key) => 
-      count + Object.keys(state.constraints[key]).length, 0) / 2;
-    if (constraintCount === 0 && state.guests.length > 10) {
-      suggestions.push('Consider adding "must sit together" constraints for families or friends.');
-    }
-    if (constraintCount > state.guests.length * 2) {
-      suggestions.push('You have many constraints. Consider if all are necessary for flexibility.');
-    }
     return suggestions;
-  }, [conflicts, state.constraints, state.guests.length]);
+  }, [conflicts]);
 
   // Export constraints functionality
   const exportJSON = React.useCallback(() => {
@@ -387,7 +379,7 @@ const ConstraintManager: React.FC = () => {
           onTouchEnd={() => clearLongPressTimer()}
           data-name={guest.name}
         >
-          <div className="truncate max-w-[100px]">
+          <div className="max-w-[100px] leading-tight" style={{ minHeight: '3rem', wordWrap: 'break-word', whiteSpace: 'normal' }}>
             {guest.name.includes('%') ? (
               <>
                 {guest.name.split('%')[0]}
@@ -826,12 +818,7 @@ const ConstraintManager: React.FC = () => {
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <ClipboardList className="mr-2" />
         Constraint Manager
-        {isPremium && state.user && (
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2">
-            <Crown className="w-4 h-4 mr-1" />
-            Premium
-          </span>
-        )}
+
       </h1>
       
       <Card>

@@ -281,7 +281,7 @@ const ConstraintManager: React.FC = () => {
           onTouchEnd={() => clearLongPressTimer()}
           data-name={guest.name}
         >
-          <div className="truncate max-w-[100px]">
+          <div className="max-w-[100px] leading-tight" style={{ minHeight: '3rem', wordWrap: 'break-word', whiteSpace: 'normal' }}>
             {guest.name.includes('%') ? (
               <>
                 {guest.name.split('%')[0]}
@@ -720,12 +720,7 @@ const ConstraintManager: React.FC = () => {
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <ClipboardList className="mr-2" />
         Constraint Manager
-        {isPremium && state.user && (
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2">
-            <Crown className="w-4 h-4 mr-1" />
-            Premium
-          </span>
-        )}
+
       </h1>
       
       <Card>

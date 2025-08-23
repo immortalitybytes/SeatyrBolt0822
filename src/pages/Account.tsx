@@ -324,12 +324,7 @@ const Account: React.FC = () => {
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <UserCircle className="mr-2" />
         Account
-        {state.subscription?.status === 'active' && (
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2">
-            <Crown className="w-4 h-4 mr-1" />
-            Premium
-          </span>
-        )}
+
       </h1>
 
       {/* Account Info Accordion */}
