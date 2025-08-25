@@ -121,7 +121,7 @@ const SeatingPlanViewer: React.FC = () => {
           const tableName = state.tables.find(tbl => tbl.id === t.id)?.name || `Table ${t.id}`;
           return `${tableName} (${t.capacity} seats)\t${t.seats.map(g =>
             g.name + (g.count > 1 ? ` (${g.count})` : '') +
-            (state.adjacents[g.name]?.length > 0 ? ' *' : '')
+            (state.adjacents[g.name]?.length > 0 ? ' ⭐' : '')
           ).join('\t')}`;
         }).join('\n');
     }).join('\n\n'));
@@ -472,7 +472,7 @@ const SeatingPlanViewer: React.FC = () => {
                               )}
                               {adjacentCount > 0 && (
                                 <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacentGuests.join(', ')}`}>
-                                  {adjacentCount === 1 ? '*' : '**'}
+                                  {adjacentCount === 1 ? '⭐' : '⭐⭐'}
                                 </span>
                               )}
                             </div>

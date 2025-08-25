@@ -498,14 +498,7 @@ const SavedSettings: React.FC = () => {
                 : ` Premium users can save up to 50 configurations.`}
             </p>
             
-            {isPremium && state.user && (
-              <div className="bg-green-50 border border-green-300 rounded-md p-2 flex-none">
-                <p className="text-sm text-green-700 flex items-center whitespace-nowrap">
-                  <Crown className="w-4 h-4 mr-1 text-yellow-500" />
-                  Premium users: Your Current Settings are preserved between sessions.
-                </p>
-              </div>
-            )}
+
           </div>
 
           <button

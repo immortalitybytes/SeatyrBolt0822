@@ -372,12 +372,17 @@ const ConstraintManager: React.FC = () => {
       // Get table assignment info if premium
       let assignmentInfo = null;
       if (isPremium) {
-        const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.name);
-        if (tableAssignment) {
-          return (
-            <div className="text-xs text-gray-600">
-              <div>Party size: {guest1.count} people</div>
-              <div>{tableAssignment}</div>
+        const assignment = formatTableAssignment(guest1.name, state.assignments, state.tables, state.seatingPlans, state.currentPlanIndex, isPremium);
+        if (assignment) {
+          const color = assignment.type === 'assigned' 
+            ? 'text-blue-600' 
+            : assignment.type === 'plan'
+              ? 'text-green-600'
+              : 'text-gray-500';
+          
+          assignmentInfo = (
+            <div className={`text-xs ${color} truncate max-w-[280px]`} title={assignment.text}>
+              {assignment.text}
             </div>
           );
         }
@@ -431,12 +436,24 @@ const ConstraintManager: React.FC = () => {
             )}
             {/* Table assignment info - always show for premium users */}
             {isPremium && (() => {
-              const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.name);
-              if (tableAssignment) {
+              const assignment = formatTableAssignment(guest1.name, state.assignments, state.tables, state.seatingPlans, state.currentPlanIndex, isPremium);
+              if (assignment && assignment.type !== 'none') {
+                // Extract just the table number for display
+                let displayText = 'Table: unassigned';
+                if (assignment.text.includes('Table')) {
+                  // Extract table number from text like "Table 1 (1)" or "Table 1"
+                  const tableMatch = assignment.text.match(/Table\s+(\d+)/);
+                  if (tableMatch) {
+                    displayText = `Table #${tableMatch[1]}`;
+                  } else {
+                    displayText = assignment.text;
+                  }
+                }
+                // Dark font for user-assigned tables, lighter for plan-allocated
+                const textColor = assignment.type === 'assigned' ? 'text-gray-800' : 'text-gray-500';
                 return (
-                  <div className="text-xs text-gray-600">
-                    <div>Party size: {guest1.count} people</div>
-                    <div>{tableAssignment}</div>
+                  <div className={`text-xs font-medium ${textColor}`}>
+                    {displayText}
                   </div>
                 );
               }
@@ -469,33 +486,25 @@ const ConstraintManager: React.FC = () => {
           const isAdjacentReverse = adjacents[guest2.name]?.includes(guest1.name);
           
           // Prepare the cell content and background color
-          // Precedence: cannot > adjacency > must > empty
-          const hasAdj = isAdjacent || isAdjacentReverse;
-          
           let cellContent = null;
           let bgColor = '';
           
-          if (constraintValue === 'cannot') {
-            // Hard prohibition always wins
+          if (constraintValue === 'must') {
+            bgColor = 'bg-[#22cf04]';
+            if (isAdjacent || isAdjacentReverse) {
+              cellContent = (
+                <div className="flex items-center justify-center space-x-1">
+                  <span className="text-[#b3b508] font-bold" style={{fontSize: '0.7em'}}>⭐</span>
+                  <span className="text-black font-bold">&</span>
+                  <span className="text-[#b3b508] font-bold" style={{fontSize: '0.7em'}}>⭐</span>
+                </div>
+              );
+            } else {
+              cellContent = <span className="text-black font-bold">&</span>;
+            }
+          } else if (constraintValue === 'cannot') {
             bgColor = 'bg-[#e6130b]';
             cellContent = <span className="text-black font-bold">X</span>;
-          } else if (hasAdj) {
-            // Show adjacency immediately (⭐&⭐) even if there is no 'must'
-            bgColor = 'bg-[#22cf04]'; // use the same green so the user sees it instantly
-            cellContent = (
-              <div className="flex items-center justify-center space-x-1">
-                <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>⭐</span>
-                <span className="text-black font-bold">&</span>
-                <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>⭐</span>
-              </div>
-            );
-          } else if (constraintValue === 'must') {
-            // Must without adjacency remains green with '&'
-            bgColor = 'bg-[#22cf04]';
-            cellContent = <span className="text-black font-bold">&</span>;
-          } else {
-            // no constraint, no adjacency → empty
-            // cellContent stays null
           }
           
           // Check if this cell should be highlighted
@@ -776,11 +785,13 @@ const ConstraintManager: React.FC = () => {
         return;
       }
       
-      // --- NO LONGER DISPATCHING SET_CONSTRAINT HERE ---
-      // Adjacency is now decoupled from must constraints
-      // Users must manually set must constraints if they want them
+      // Set constraint to 'must' when setting adjacency
+      dispatch({
+        type: 'SET_CONSTRAINT',
+        payload: { guest1: selectedGuest, guest2: guestName, value: 'must' }
+      });
       
-      // Set only the adjacency
+      // Then set the adjacency
       dispatch({
         type: 'SET_ADJACENT',
         payload: { guest1: selectedGuest, guest2: guestName }

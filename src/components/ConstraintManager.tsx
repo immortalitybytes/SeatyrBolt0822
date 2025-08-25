@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, ChevronDown, ChevronUp, X } from 'lucide-react';
-import Card from '../components/Card';
-import Button from '../components/Button';
+import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, ChevronDown, ChevronUp, X, Download, CheckCircle, AlertTriangle } from 'lucide-react';
+import Card from './Card';
+import Button from './Button';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
-import { getLastNameForSorting } from '../utils/formatters';
+import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
+import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
+import SavedSettingsAccordion from './SavedSettingsAccordion';
 
 // Sort options
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
@@ -105,45 +107,9 @@ const ConstraintManager: React.FC = () => {
     dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
   };
   
-  // Function to get number of adjacent pairs for a guest
-  function getAdjacentCount(guestName: string) {
+  // Get adjacent count for a guest
+  const getAdjacentCount = (guestName: string) => {
     return state.adjacents[guestName]?.length || 0;
-  }
-  
-  // Get table assignment info for a guest
-  function getGuestTableAssignment(guestName: string) {
-    if (!isPremium) return null;
-    
-    // Check for explicit assignments from user input
-    if (state.assignments[guestName]) {
-      const assignedTableIds = state.assignments[guestName].split(',').map(t => t.trim());
-      const tablenames = assignedTableIds.map(id => {
-        // Try to find table by id first
-        const numId = parseInt(id);
-        if (!isNaN(numId)) {
-          const table = state.tables.find(t => t.id === numId);
-          return table?.name ? `${table.name} (${numId})` : `${numId}`;
-        }
-        // If not a number, return as is (might be a custom table name)
-        return id;
-      });
-      return { text: tablenames.join(', '), type: 'assigned' };
-    }
-    
-    // Check current seating plan
-    if (state.seatingPlans.length > 0) {
-      const plan = state.seatingPlans[state.currentPlanIndex];
-      for (const table of plan.tables) {
-        const guestInTable = table.seats.find(seat => seat.name === guestName);
-        if (guestInTable) {
-          const tableObj = state.tables.find(t => t.id === table.id);
-          const tableName = tableObj?.name ? `${tableObj.name} (${table.id})` : `${table.id}`;
-          return { text: tableName, type: 'plan' };
-        }
-      }
-    }
-    // No assignment found
-    return { text: 'unassigned', type: 'none' };
   }
   
   // Function to get sorted guests
@@ -258,7 +224,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest.name].join(', ')}`}>
-            {adjacentCount === 1 ? '*' : '**'}
+            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
       }
@@ -310,17 +276,13 @@ const ConstraintManager: React.FC = () => {
       // Get table assignment info if premium
       let assignmentInfo = null;
       if (isPremium) {
-        const assignment = getGuestTableAssignment(guest1.name);
-        if (assignment) {
-          const color = assignment.type === 'assigned' 
-            ? 'text-blue-600' 
-            : assignment.type === 'plan'
-              ? 'text-green-600'
-              : 'text-gray-500';
+        const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.name);
+        if (tableAssignment) {
+          const color = 'text-gray-600'; // Default color for assignment info
           
           assignmentInfo = (
-            <div className={`text-xs ${color} truncate max-w-[140px]`} title={assignment.text}>
-              {assignment.text}
+            <div className={`text-xs ${color} truncate max-w-[280px]`} title={tableAssignment}>
+              {tableAssignment}
             </div>
           );
         }
@@ -339,7 +301,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest1.name].join(', ')}`}>
-            {adjacentCount === 1 ? '*' : '**'}
+            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         );
       }
@@ -396,25 +358,33 @@ const ConstraintManager: React.FC = () => {
           const isAdjacentReverse = adjacents[guest2.name]?.includes(guest1.name);
           
           // Prepare the cell content and background color
+          // Precedence: cannot > adjacency > must > empty
+          const hasAdj = isAdjacent || isAdjacentReverse;
+          
           let cellContent = null;
           let bgColor = '';
           
-          if (constraintValue === 'must') {
-            bgColor = 'bg-[#22cf04]';
-            if (isAdjacent || isAdjacentReverse) {
-              cellContent = (
-                <div className="flex items-center justify-center space-x-1">
-                  <span className="text-[#b3b508] font-bold">*</span>
-                  <span className="text-black font-bold">&</span>
-                  <span className="text-[#b3b508] font-bold">*</span>
-                </div>
-              );
-            } else {
-              cellContent = <span className="text-black font-bold">&</span>;
-            }
-          } else if (constraintValue === 'cannot') {
+          if (constraintValue === 'cannot') {
+            // Hard prohibition always wins
             bgColor = 'bg-[#e6130b]';
             cellContent = <span className="text-black font-bold">X</span>;
+          } else if (hasAdj) {
+            // Show adjacency immediately (⭐&⭐) even if there is no 'must'
+            bgColor = 'bg-[#22cf04]'; // use the same green so the user sees it instantly
+            cellContent = (
+              <div className="flex items-center justify-center space-x-1">
+                <span className="text-[#b3b508] font-bold">⭐</span>
+                <span className="text-black font-bold">&</span>
+                <span className="text-[#b3b508] font-bold">⭐</span>
+              </div>
+            );
+          } else if (constraintValue === 'must') {
+            // Must without adjacency remains green with '&'
+            bgColor = 'bg-[#22cf04]';
+            cellContent = <span className="text-black font-bold">&</span>;
+          } else {
+            // no constraint, no adjacency → empty
+            // cellContent stays null
           }
           
           // Check if this cell should be highlighted
@@ -499,7 +469,7 @@ const ConstraintManager: React.FC = () => {
       
       // Show ellipsis if current page is not in last 3
       if (currentPage < totalPages - 3) {
-        pageButtons.push(<span key="ellipsis2\" className=\"mx-1">...</span>);
+        pageButtons.push(<span key="ellipsis2" className="mx-1">...</span>);
       }
       
       // Always show last 3 pages
@@ -729,7 +699,7 @@ const ConstraintManager: React.FC = () => {
             <Info className="text-[#586D78] mt-1 flex-shrink-0" />
             <div>
               <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
-              <ul className="list-disc pl-5 space-y-1 text-gray-600 text-[17px] mt-2">
+              <ul className="list-disc pl-5 space-y-3 text-gray-600 text-[17px] mt-2">
                 <li>Click a cell to cycle between constraints:
                   <div className="mt-1 flex space-x-4">
                     <span className="flex items-center">
@@ -752,7 +722,7 @@ const ConstraintManager: React.FC = () => {
                     <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
                   </ol>
                 </li>
-                <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">*</span></li>
+                <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
               </ul>
             </div>
           </div>

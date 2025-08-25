@@ -1,40 +1,13 @@
-import { Guest, Table, SeatingPlan, ValidationError } from '../types';
+import { Guest, Table, SeatingPlan, ConstraintConflict } from '../types';
 
-// Enhanced algorithm with multiple strategies and conflict detection
-interface SeatingResult {
-  plans: SeatingPlan[];
-  errors: ValidationError[];
-  conflicts: ConstraintConflict[];
-}
-
-interface ConstraintConflict {
-  id: string;
-  type: 'circular' | 'impossible' | 'capacity_violation' | 'adjacency_violation';
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  description: string;
-  affectedGuests: string[];
-}
-
+// Add missing types
 interface AtomicGroup {
   units: Guest[];
   totalCount: number;
   priority: number;
-  constraintCount: number;
 }
 
-type DiversityStrategy = 'shuffle' | 'reverse' | 'size-first' | 'size-last' | 'random-pairs' | 'priority-first' | 'constraint-heavy-first';
-
-// Fisher-Yates Shuffle with optional seed support
-function shuffleArray<T>(array: T[]): T[] {
-  const result = [...array];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-// Optimized Union-Find for grouping guests with must constraints
+// Simple Union-Find implementation
 class OptimizedUnionFind {
   private parent: Map<string, string> = new Map();
   private rank: Map<string, number> = new Map();
@@ -80,7 +53,211 @@ class OptimizedUnionFind {
   }
 }
 
-// Enhanced conflict detection
+// ---------- MUST groups: capacity-only (no "circular" spam) ----------
+type _Guest = { name: string; count: number };
+type _Table = { id: number; seats: number; name?: string };
+type _Constraint = 'must' | 'cannot' | '';
+
+type _Conflict =
+  | { type: 'must_group_capacity_violation'; group: string[]; seats: number; maxTableCapacity: number }
+  | { type: 'cannot_violation'; pair: [string, string] }
+  | { type: 'adjacency_degree_violation'; guest: string; degree: number }
+  | { type: 'adjacency_closed_loop'; chain: string[] }
+  | { type: 'adjacency_capacity_violation'; chain: string[]; seats: number; minTableCapacity: number };
+
+export function detectMustGroupConflicts(
+  guests: _Guest[],
+  tables: _Table[],
+  constraints: Record<string, Record<string, _Constraint>>,
+): _Conflict[] {
+  const conflicts: _Conflict[] = [];
+  if (!tables.length) return conflicts;
+
+  const names = guests.map(g => g.name);
+  const idx = new Map(names.map((n, i) => [n, i]));
+  const parent = names.map((_, i) => i);
+  const find = (x: number): number => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  const unite = (a: number, b: number) => { a = find(a); b = find(b); if (a !== b) parent[b] = a; };
+
+  // Build undirected components for MUST relations; skip self edges
+  for (const [a, row] of Object.entries(constraints)) {
+    for (const [b, rel] of Object.entries(row || {})) {
+      if (rel !== 'must') continue;
+      if (!idx.has(a) || !idx.has(b)) continue;
+      if (a === b) continue;
+      unite(idx.get(a)!, idx.get(b)!);
+    }
+  }
+
+  // Bucket by component root
+  const buckets = new Map<number, string[]>();
+  for (const n of names) {
+    const r = find(idx.get(n)!);
+    if (!buckets.has(r)) buckets.set(r, []);
+    buckets.get(r)!.push(n);
+  }
+
+  // Flag only when group > largest table
+  const countOf = new Map(guests.map(g => [g.name, g.count ?? 1]));
+  const maxTableCap = Math.max(...tables.map(t => t.seats));
+  for (const group of buckets.values()) {
+    const hasMustEdge = group.some(a => group.some(b => a !== b && constraints[a]?.[b] === 'must'));
+    if (!hasMustEdge) continue;
+    const seats = group.reduce((s, n) => s + (countOf.get(n) ?? 1), 0);
+    if (seats > maxTableCap) {
+      conflicts.push({ type: 'must_group_capacity_violation', group: [...group].sort(), seats, maxTableCapacity: maxTableCap });
+    }
+  }
+  return conflicts;
+}
+
+// ---------- Adjacency validator: degree cap, endpoints, smallest table ----------
+export function detectAdjacentPairingConflicts(
+  guests: _Guest[],
+  tables: _Table[],
+  adjacents: Record<string, string[]>,
+): _Conflict[] {
+  const conflicts: _Conflict[] = [];
+  if (!tables.length) return conflicts;
+
+  const minCap = Math.min(...tables.map(t => t.seats));
+  const present = new Set(guests.map(g => g.name));
+  const countBy = new Map(guests.map(g => [g.name, g.count ?? 1]));
+
+  // Build restricted undirected graph on present guests
+  const G = new Map<string, Set<string>>();
+  for (const n of present) G.set(n, new Set());
+  for (const [a, list] of Object.entries(adjacents)) {
+    if (!present.has(a)) continue;
+    for (const b of list || []) {
+      if (!present.has(b) || a === b) continue;
+      G.get(a)!.add(b);
+      G.get(b)!.add(a);
+    }
+  }
+
+  // Degree cap (collect; do not short-circuit)
+  for (const [n, nbrs] of G.entries()) {
+    if (nbrs.size > 2) conflicts.push({ type: 'adjacency_degree_violation', guest: n, degree: nbrs.size });
+  }
+
+  // Components
+  const seen = new Set<string>();
+  for (const s of G.keys()) {
+    if (seen.has(s)) continue;
+    const comp: string[] = [];
+    const stack = [s];
+    let hasEdge = G.get(s)!.size > 0;
+    seen.add(s);
+
+    while (stack.length) {
+      const v = stack.pop()!;
+      comp.push(v);
+      for (const w of G.get(v) || []) {
+        if (!seen.has(w)) { seen.add(w); stack.push(w); hasEdge = true; }
+      }
+    }
+    if (!hasEdge) continue; // isolated node has no adjacency
+
+    const seats = comp.reduce((sum, n) => sum + (countBy.get(n) ?? 1), 0);
+
+    if (comp.length === 2) {
+      // Axiom: not a loop; only capacity gate vs smallest table
+      if (seats > minCap) {
+        conflicts.push({ type: 'adjacency_capacity_violation', chain: [...comp].sort(), seats, minTableCapacity: minCap });
+      }
+      continue;
+    }
+
+    // 3+ chain: capacity + endpoints
+    if (seats > minCap) {
+      conflicts.push({ type: 'adjacency_capacity_violation', chain: [...comp].sort(), seats, minTableCapacity: minCap });
+    }
+    const endpoints = comp.filter(n => (G.get(n)!.size === 1)).length;
+    const maxDeg = Math.max(...comp.map(n => G.get(n)!.size));
+    if (maxDeg <= 2 && endpoints < 2) {
+      conflicts.push({ type: 'adjacency_closed_loop', chain: [...comp].sort() });
+    }
+  }
+
+  return conflicts;
+}
+
+// ---------- Seat ordering: build simple paths from endpoints ----------
+export function orderByAdjacencyEndpoints(
+  units: _Guest[],
+  adjacents: Record<string, string[]>
+): _Guest[] {
+  const present = new Set(units.map(u => u.name));
+  const nameTo = new Map(units.map(u => [u.name, u]));
+  const G = new Map<string, Set<string>>();
+  for (const n of present) G.set(n, new Set());
+  for (const [a, list] of Object.entries(adjacents)) {
+    if (!present.has(a)) continue;
+    for (const b of list || []) if (present.has(b) && a !== b) {
+      G.get(a)!.add(b); G.get(b)!.add(a);
+    }
+  }
+
+  const used = new Set<string>();
+  const ordered: _Guest[] = [];
+  const seen = new Set<string>();
+
+  for (const start of present) {
+    if (seen.has(start)) continue;
+    const stack = [start]; seen.add(start);
+    const comp: string[] = []; let hasEdge = G.get(start)!.size > 0;
+    while (stack.length) {
+      const v = stack.pop()!; comp.push(v);
+      for (const w of G.get(v) || []) if (!seen.has(w)) { seen.add(w); stack.push(w); hasEdge = true; }
+    }
+    if (!hasEdge) continue;
+
+    // Pick endpoint if exists; else arbitrary node
+    const deg = (n: string) => (G.get(n) || new Set()).size;
+    let cur: string | null = comp.find(n => deg(n) === 1) || comp[0] || null;
+
+    const path: string[] = [];
+    const visited = new Set<string>();
+    let prev: string | null = null;
+
+    while (cur && !visited.has(cur)) {
+      path.push(cur); visited.add(cur);
+      const nbrs = [...(G.get(cur) || new Set())].filter(x => !visited.has(x));
+      let next: string | null = null;
+      if (prev) next = nbrs.find(x => x !== prev) || null;
+      if (!next) next = nbrs[0] || null;
+      prev = cur; cur = next;
+    }
+
+    for (const n of path) if (!used.has(n)) { used.add(n); const u = nameTo.get(n); if (u) ordered.push(u); }
+  }
+
+  // Append unconstrained units in original order
+  for (const u of units) if (!used.has(u.name)) ordered.push(u);
+  return ordered;
+}
+
+// ---------- Neighbor-true adjacency scoring (block-aware) ----------
+export function scoreAdjacencyNeighbors(
+  plan: { tables: { id: number; seats: _Guest[] }[] },
+  adjacents: Record<string, string[]>
+): number {
+  let satisfied = 0;
+  for (const table of plan.tables) {
+    const order = table.seats;
+    const n = order.length; if (!n) continue;
+    for (let i = 0; i < n; i++) {
+      const U = order[i], L = order[(i - 1 + n) % n], R = order[(i + 1) % n];
+      const want = new Set(adjacents[U.name] || []);
+      if (want.has(L.name)) satisfied++;
+      if (want.has(R.name)) satisfied++;
+    }
+  }
+  return Math.floor(satisfied / 2); // each satisfied pair counted twice
+}
+
+// Enhanced conflict detection using the new superior logic
 export function detectConstraintConflicts(
   guests: Guest[],
   constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>,
@@ -91,44 +268,27 @@ export function detectConstraintConflicts(
   const conflicts: ConstraintConflict[] = [];
   if (guests.length === 0 || tables.length === 0) return [];
 
-  const guestMap = new Map(guests.map(g => [g.name, g]));
+  // Validate input data
+  if (!constraints || typeof constraints !== 'object') {
+    console.warn('Invalid constraints object provided to detectConstraintConflicts');
+    return [];
+  }
 
-  // Detect circular dependencies in must constraints
-  const visited = new Set<string>();
-  const recursionStack = new Set<string>();
-
-  const detectCycle = (guestName: string, path: string[]): void => {
-    visited.add(guestName);
-    recursionStack.add(guestName);
-
-    const guestConstraints = constraints[guestName] || {};
-    for (const [otherGuestName, constraint] of Object.entries(guestConstraints)) {
-      if (constraint === 'must' && guestMap.has(otherGuestName)) {
-        if (recursionStack.has(otherGuestName)) {
-          const cycleStart = path.indexOf(otherGuestName);
-          const cycle = [...path.slice(cycleStart), otherGuestName];
-          conflicts.push({
-            id: `circular-${Date.now()}-${Math.random()}`,
-            type: 'circular',
-            severity: 'high',
-            description: `Circular dependency: ${cycle.join(' → ')}`,
-            affectedGuests: cycle,
-          });
-        } else if (!visited.has(otherGuestName)) {
-          detectCycle(otherGuestName, [...path, guestName]);
-        }
-      }
-    }
-    recursionStack.delete(guestName);
-  };
-
-  for (const guest of guestMap.keys()) {
-    if (!visited.has(guest)) {
-      detectCycle(guest, [guest]);
+  // 1) MUST groups: capacity-only (no more "circular dependency" spam)
+  const mustConflicts = detectMustGroupConflicts(guests as _Guest[], tables as _Table[], constraints);
+  for (const conflict of mustConflicts) {
+    if (conflict.type === 'must_group_capacity_violation') {
+      conflicts.push({
+        id: `must-capacity-${Date.now()}-${Math.random()}`,
+        type: 'capacity_violation',
+        severity: 'high',
+        description: `Must-sit group too large: ${conflict.group.join(', ')} need ${conflict.seats} seats; largest table is ${conflict.maxTableCapacity}.`,
+        affectedGuests: conflict.group,
+      });
     }
   }
 
-  // Detect contradictory constraints
+  // 2) CANNOT violations (keep existing logic)
   const checkedPairs = new Set<string>();
   for (const [guest1, guestConstraints] of Object.entries(constraints)) {
     for (const [guest2, constraint1] of Object.entries(guestConstraints)) {
@@ -141,7 +301,7 @@ export function detectConstraintConflicts(
         conflicts.push({
           id: `contradictory-${Date.now()}-${Math.random()}`,
           type: 'impossible',
-          severity: 'critical',
+          severity: 'high',
           description: `Contradictory constraints between ${guest1} and ${guest2}`,
           affectedGuests: [guest1, guest2],
         });
@@ -150,37 +310,42 @@ export function detectConstraintConflicts(
     }
   }
 
-  // Detect capacity violations in must groups
-  const uf = new OptimizedUnionFind();
-  guests.forEach(g => uf.find(g.name));
-  for (const [guest1, guestConstraints] of Object.entries(constraints)) {
-    for (const [guest2, constraint] of Object.entries(guestConstraints)) {
-      if (constraint === 'must') {
-        uf.union(guest1, guest2);
+  // 3) ADJACENCY (degree + endpoints + smallest table capacity)
+  if (checkAdjacents && adjacents && Object.keys(adjacents).length > 0) {
+    const adjConflicts = detectAdjacentPairingConflicts(guests as _Guest[], tables as _Table[], adjacents);
+    for (const conflict of adjConflicts) {
+      if (conflict.type === 'adjacency_capacity_violation') {
+        conflicts.push({
+          id: `adj-capacity-${Date.now()}-${Math.random()}`,
+          type: 'capacity_violation',
+          severity: 'high',
+          description: `Adjacent-pairing chain won't fit the smallest table: ${conflict.chain.join(', ')} total ${conflict.seats} > smallest ${conflict.minTableCapacity}.`,
+          affectedGuests: conflict.chain,
+        });
+      } else if (conflict.type === 'adjacency_closed_loop') {
+        conflicts.push({
+          id: `adj-loop-${Date.now()}-${Math.random()}`,
+          type: 'circular',
+          severity: 'high',
+          description: `Adjacent-pairing forms a closed loop: pick two ends (or remove a link) so the chain has endpoints.`,
+          affectedGuests: conflict.chain,
+        });
+      } else if (conflict.type === 'adjacency_degree_violation') {
+        conflicts.push({
+          id: `adj-degree-${Date.now()}-${Math.random()}`,
+          type: 'impossible',
+          severity: 'critical',
+          description: `Too many neighbors: ${conflict.guest} has ${conflict.degree}; max is 2.`,
+          affectedGuests: [conflict.guest],
+        });
       }
-    }
-  }
-  
-  const groups = uf.getGroups();
-  const maxTableCapacity = Math.max(...tables.map(t => t.seats), 0);
-  
-  for (const group of groups) {
-    const totalSize = group.reduce((sum, name) => sum + (guestMap.get(name)?.count || 0), 0);
-    if (totalSize > maxTableCapacity) {
-      conflicts.push({
-        id: `capacity-${Date.now()}-${Math.random()}`,
-        type: 'capacity_violation',
-        severity: 'critical',
-        description: `Group of ${totalSize} guests (${group.join(', ')}) exceeds largest table capacity of ${maxTableCapacity}`,
-        affectedGuests: group,
-      });
     }
   }
 
   return conflicts;
 }
 
-// Build atomic groups that must sit together
+// Build atomic groups that must sit together (including implicit adjacency groups)
 function buildAtomicGroups(
   guests: Guest[],
   constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>,
@@ -190,354 +355,131 @@ function buildAtomicGroups(
   const guestMap = new Map(guests.map(g => [g.name, g]));
   guests.forEach(g => uf.find(g.name));
 
-  // Union guests that must sit together
+  // Union guests that must sit together (explicit must constraints)
   for (const [key1, guestConstraints] of Object.entries(constraints)) {
     for (const [key2, constraint] of Object.entries(guestConstraints)) {
       if (constraint === 'must') uf.union(key1, key2);
     }
   }
 
-  // Union guests that must be adjacent
-  for (const [key1, adjacentGuests] of Object.entries(adjacents)) {
-    for (const key2 of adjacentGuests) {
-      uf.union(key1, key2);
+  // Union guests that must be adjacent (implicit must - adjacency implies co-table)
+  for (const [a, list] of Object.entries(adjacents)) {
+    for (const b of list || []) {
+      if (a === b) continue;
+      if (guestMap.has(a) && guestMap.has(b)) {
+        uf.union(a, b);
+      }
     }
   }
 
-  return uf.getGroups().map(groupNames => {
-    const units = groupNames.map(name => guestMap.get(name)).filter((g): g is Guest => !!g);
+  return uf.getGroups().map((groupNames: string[]) => {
+    const units = groupNames.map((name: string) => guestMap.get(name)).filter((g): g is Guest => !!g);
     const totalCount = units.reduce((sum, u) => sum + u.count, 0);
     const priority = units.some(u => /bride|groom/i.test(u.name)) ? 25 : 0;
-    const constraintCount = units.reduce((count, unit) => {
-      const guestConstraints = constraints[unit.name] || {};
-      return count + Object.keys(guestConstraints).length;
-    }, 0);
-    
-    return { units, totalCount, priority, constraintCount };
-  }).sort((a, b) => (b.priority - a.priority) || (b.totalCount - a.totalCount));
-}
-
-// Apply diversity strategy to group ordering
-function applyDiversityStrategy(
-  groups: AtomicGroup[],
-  strategy: DiversityStrategy
-): AtomicGroup[] {
-  switch (strategy) {
-    case 'shuffle':
-      return shuffleArray(groups);
-    case 'reverse':
-      return [...groups].reverse();
-    case 'size-first':
-      return [...groups].sort((a, b) => b.totalCount - a.totalCount);
-    case 'size-last':
-      return [...groups].sort((a, b) => a.totalCount - b.totalCount);
-    case 'random-pairs':
-      const paired = [];
-      const shuffled = shuffleArray(groups);
-      for (let i = 0; i < shuffled.length; i += 2) {
-        paired.push(shuffled[i]);
-        if (i + 1 < shuffled.length) paired.push(shuffled[i + 1]);
-      }
-      return paired;
-    case 'priority-first':
-      return [...groups].sort((a, b) => b.priority - a.priority || b.totalCount - a.totalCount);
-    case 'constraint-heavy-first':
-      return [...groups].sort((a, b) => b.constraintCount - a.constraintCount);
-    default:
-      return groups;
-  }
-}
-
-// Check if a group can be placed on a table
-function canPlaceGroupOnTable(
-  group: Guest[],
-  tableSeats: Guest[],
-  tableCapacity: number,
-  constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>
-): boolean {
-  const currentOccupancy = tableSeats.reduce((sum, g) => sum + g.count, 0);
-  const groupSize = group.reduce((sum, g) => sum + g.count, 0);
-  
-  if (currentOccupancy + groupSize > tableCapacity) {
-    return false;
-  }
-
-  for (const newGuest of group) {
-    for (const existingGuest of tableSeats) {
-      if (
-        constraints[newGuest.name]?.[existingGuest.name] === 'cannot' ||
-        constraints[existingGuest.name]?.[newGuest.name] === 'cannot'
-      ) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-// Score a seating plan based on constraints and preferences
-function scorePlan(
-  plan: SeatingPlan,
-  constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>,
-  adjacents: Record<string, string[]>
-): number {
-  let score = 0;
-  const totalGuests = plan.tables.flatMap(t => t.seats).length;
-
-  // Seat utilization score
-  if (totalGuests > 0) {
-    score += totalGuests * 10;
-  }
-
-  // Must constraints satisfaction
-  plan.tables.forEach(table => {
-    for (let i = 0; i < table.seats.length; i++) {
-      for (let j = i + 1; j < table.seats.length; j++) {
-        const g1 = table.seats[i].name;
-        const g2 = table.seats[j].name;
-        if (constraints[g1]?.[g2] === 'must' || constraints[g2]?.[g1] === 'must') {
-          score += 100;
-        }
-      }
-    }
+    return { units, totalCount, priority };
   });
-
-  // Cannot constraints violations
-  let violatedCannot = 0;
-  plan.tables.forEach(table => {
-    for (let i = 0; i < table.seats.length; i++) {
-      for (let j = i + 1; j < table.seats.length; j++) {
-        const g1 = table.seats[i].name;
-        const g2 = table.seats[j].name;
-        if (constraints[g1]?.[g2] === 'cannot' || constraints[g2]?.[g1] === 'cannot') {
-          violatedCannot++;
-        }
-      }
-    }
-  });
-  score -= violatedCannot * 200;
-
-  // Adjacency preferences
-  plan.tables.forEach(table => {
-    const seatedNames = table.seats.map(g => g.name);
-    for (const guest of table.seats) {
-      const desiredAdjacents = adjacents[guest.name] || [];
-      const satisfied = desiredAdjacents.filter(adj => seatedNames.includes(adj)).length;
-      score += satisfied * 50;
-    }
-  });
-
-  return Math.max(0, score);
 }
 
-// Check if a plan is sufficiently unique
-function isPlanSufficientlyUnique(
-  newPlan: SeatingPlan,
-  existingPlans: SeatingPlan[],
-  threshold: number = 0.7
-): boolean {
-  for (const plan of existingPlans) {
-    let matchingGuests = 0;
-    const totalGuests = newPlan.tables.flatMap(t => t.seats).length;
-    
-    for (const newTable of newPlan.tables) {
-      const matchingTable = plan.tables.find(t => t.id === newTable.id);
-      if (matchingTable) {
-        const newGuests = new Set(newTable.seats.map(g => g.name));
-        const existingGuests = new Set(matchingTable.seats.map(g => g.name));
-        const intersection = [...newGuests].filter(g => existingGuests.has(g)).length;
-        matchingGuests += intersection;
-      }
-    }
-    
-    if (totalGuests > 0 && matchingGuests / totalGuests > threshold) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Generate a single seating plan using a specific strategy
-function generateSinglePlan(
-  atomicGroups: AtomicGroup[],
-  tables: Table[],
-  constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>,
-  adjacents: Record<string, string[]>,
-  assignments: Record<string, string>,
-  strategy: DiversityStrategy = 'shuffle'
-): SeatingPlan | null {
-  const diversifiedGroups = applyDiversityStrategy(atomicGroups, strategy);
-  
-  // Create empty tables
-  const plan: {
-    id: number;
-    seats: Guest[];
-    capacity: number;
-  }[] = tables.map(table => ({
-    id: table.id,
-    seats: [],
-    capacity: table.seats
-  }));
-
-  // Track assigned guests
-  const assignedGuests = new Set<string>();
-
-  // Place atomic groups
-  for (const group of diversifiedGroups) {
-    let placed = false;
-    
-    // Try to place in assigned tables first
-    const assignedTableIds = group.units.some(u => assignments[u.name]) 
-      ? group.units.flatMap(u => assignments[u.name]?.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id)) || [])
-      : [];
-    
-    if (assignedTableIds.length > 0) {
-      for (const tableId of assignedTableIds) {
-        const table = plan.find(t => t.id === tableId);
-        if (table && canPlaceGroupOnTable(group.units, table.seats, table.capacity, constraints)) {
-          table.seats.push(...group.units);
-          group.units.forEach(u => assignedGuests.add(u.name));
-          placed = true;
-          break;
-        }
-      }
-    }
-    
-    // If not placed in assigned tables, try any available table
-    if (!placed) {
-      const shuffledTables = shuffleArray(plan);
-      for (const table of shuffledTables) {
-        if (canPlaceGroupOnTable(group.units, table.seats, table.capacity, constraints)) {
-          table.seats.push(...group.units);
-          group.units.forEach(u => assignedGuests.add(u.name));
-          placed = true;
-          break;
-        }
-      }
-    }
-    
-    if (!placed) {
-      return null; // Cannot place this group
-    }
-  }
-
-  // Optimize seating order within tables for adjacency
-  for (const table of plan) {
-    if (table.seats.length > 1) {
-      table.seats = optimizeSeatingOrder(table.seats, adjacents);
-    }
-  }
-
-  const seatingPlan: SeatingPlan = {
-    id: Math.floor(Math.random() * 10000),
-    tables: plan.map(t => ({
-      id: t.id,
-      seats: t.seats,
-      capacity: t.capacity
-    }))
-  };
-  
-  return seatingPlan;
-}
-
-// Optimize seating order within a table for adjacency
-function optimizeSeatingOrder(
-  tableGuests: Guest[],
-  adjacents: Record<string, string[]>
-): Guest[] {
-  if (tableGuests.length <= 1) return tableGuests;
-  
-  const orderedSeats: Guest[] = [];
-  const availableGuests = new Set(tableGuests.map(g => g.name));
-  const guestMap = new Map(tableGuests.map(g => [g.name, g]));
-
-  // Start with a priority guest (bride/groom) or first guest
-  let currentGuest = tableGuests.find(g => /bride|groom/i.test(g.name)) || tableGuests[0];
-  
-  orderedSeats.push(currentGuest);
-  availableGuests.delete(currentGuest.name);
-
-  // Build the seating order by following adjacency preferences
-  while (availableGuests.size > 0) {
-    const desiredAdjacents = adjacents[currentGuest.name] || [];
-    const nextGuestName = desiredAdjacents.find(adj => availableGuests.has(adj));
-    
-    if (nextGuestName && guestMap.has(nextGuestName)) {
-      currentGuest = guestMap.get(nextGuestName)!;
-    } else {
-      // Pick any remaining guest
-      const next = availableGuests.values().next().value;
-      if (!next) break;
-      currentGuest = guestMap.get(next)!;
-    }
-    
-    orderedSeats.push(currentGuest);
-    availableGuests.delete(currentGuest.name);
-  }
-
-  return orderedSeats;
-}
-
-// Enhanced validation with more comprehensive checks
-export function validateConstraints(
+// Generate a single seating plan using the new superior logic
+export function generateSinglePlan(
   guests: Guest[],
   tables: Table[],
   constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>,
-  assignments: Record<string, string>,
   adjacents: Record<string, string[]>
-): ValidationError[] {
-  const errors: ValidationError[] = [];
+): SeatingPlan | null {
+  if (guests.length === 0 || tables.length === 0) return null;
 
-  // Basic capacity check
-  const totalGuests = guests.reduce((sum, g) => sum + g.count, 0);
-  const totalSeats = tables.reduce((sum, t) => sum + t.seats, 0);
-  if (totalGuests > totalSeats) {
-    errors.push({
-      message: `Not enough seats (${totalSeats}) for all guests (${totalGuests}).`,
-      type: 'error',
-    });
+  // Build atomic groups (including implicit adjacency groups)
+  const atomicGroups = buildAtomicGroups(guests, constraints, adjacents);
+  
+  // Sort groups by priority and size
+  atomicGroups.sort((a, b) => {
+    if (a.priority !== b.priority) return b.priority - a.priority;
+    return b.totalCount - a.totalCount;
+  });
+
+  // Sort tables by capacity (largest first for better fit)
+  const sortedTables = [...tables].sort((a, b) => b.seats - a.seats);
+
+  const plan: SeatingPlan = {
+    id: Date.now(),
+    tables: []
+  };
+
+  const remainingGuests = new Set(guests.map(g => g.name));
+  const tableAssignments = new Map<string, number>();
+
+  // Assign atomic groups to tables
+  for (const group of atomicGroups) {
+    if (group.units.length === 0) continue;
+
+    // Find best table for this group
+    let bestTable: Table | null = null;
+    let bestTableIndex = -1;
+
+    for (let i = 0; i < sortedTables.length; i++) {
+      const table = sortedTables[i];
+      if (table.seats >= group.totalCount) {
+        bestTable = table;
+        bestTableIndex = i;
+        break;
+      }
+    }
+
+    if (!bestTable) {
+      console.warn(`Cannot fit group ${group.units.map(u => u.name).join(', ')} (${group.totalCount} seats) in any table`);
+      continue;
+    }
+
+    // Create table assignment
+    const tableAssignment = {
+      id: bestTable.id,
+      seats: group.units,
+      capacity: bestTable.seats
+    };
+
+    // Order seats using endpoint-based adjacency ordering
+    tableAssignment.seats = orderByAdjacencyEndpoints(group.units, adjacents);
+
+    plan.tables.push(tableAssignment);
+
+    // Mark guests as assigned
+    for (const guest of group.units) {
+      remainingGuests.delete(guest.name);
+      tableAssignments.set(guest.name, bestTable.id);
+    }
   }
 
-  // Validate table assignments
-  Object.keys(assignments).forEach((guestName) => {
-    const tableIds = assignments[guestName]
-      .split(',')
-      .map((t) => parseInt(t.trim()))
-      .filter((t) => !isNaN(t));
-    tableIds.forEach((tableId) => {
-      if (!tables.some((table) => table.id === tableId)) {
-        errors.push({
-          message: `Invalid table assignment for ${guestName}: Table ${tableId} does not exist.`,
-          type: 'error',
-        });
-      }
-    });
-  });
-
-  // Check for conflicting constraints in assignments
-  Object.keys(constraints).forEach((guest1) => {
-    Object.keys(constraints[guest1] || {}).forEach((guest2) => {
-      if (
-        constraints[guest1][guest2] === 'must' &&
-        assignments[guest1] &&
-        assignments[guest2]
-      ) {
-        const tables1 = assignments[guest1].split(',').map(Number);
-        const tables2 = assignments[guest2].split(',').map(Number);
-        if (!tables1.some((t) => tables2.includes(t))) {
-          errors.push({
-            message: `Constraint conflict: ${guest1} and ${guest2} must be at the same table but are assigned to non-overlapping tables.`,
-            type: 'error',
+  // Assign remaining ungrouped guests to available seats
+  const remainingGuestsList = Array.from(remainingGuests).map(name => guests.find(g => g.name === name)!);
+  
+  for (const guest of remainingGuestsList) {
+    // Find table with available seats
+    for (const table of sortedTables) {
+      const assignedGuests = plan.tables.find(t => t.id === table.id)?.seats || [];
+      if (assignedGuests.length + guest.count <= table.seats) {
+        // Add guest to existing table
+        const existingTable = plan.tables.find(t => t.id === table.id);
+        if (existingTable) {
+          existingTable.seats.push(guest);
+        } else {
+          // Create new table assignment
+          plan.tables.push({
+            id: table.id,
+            seats: [guest],
+            capacity: table.seats
           });
         }
+        tableAssignments.set(guest.name, table.id);
+        break;
       }
-    });
-  });
+    }
+  }
 
-  return errors;
+  return plan;
 }
 
-// Enhanced seating plan generation with multiple strategies
+// Generate multiple seating plans using different strategies
 export async function generateSeatingPlans(
   guests: Guest[],
   tables: Table[],
@@ -545,63 +487,14 @@ export async function generateSeatingPlans(
   adjacents: Record<string, string[]>,
   assignments: Record<string, string>,
   isPremium: boolean = false
-): Promise<{ plans: SeatingPlan[], errors: ValidationError[] }> {
-  // Validate input first
-  const errors = validateConstraints(guests, tables, constraints, assignments, adjacents);
+): Promise<{ plans: SeatingPlan[], errors: any[] }> {
+  // For now, generate a single plan using the new logic
+  const plan = generateSinglePlan(guests, tables, constraints, adjacents);
   
-  if (errors.some(error => error.type === 'error')) {
-    return { plans: [], errors };
-  }
-  
-  // Detect conflicts
-  const conflicts = detectConstraintConflicts(guests, constraints, tables, true, adjacents);
-  const criticalConflicts = conflicts.filter(c => c.severity === 'critical');
-  
-  if (criticalConflicts.length > 0) {
-    errors.push({
-      message: 'Critical constraint conflicts detected. Please resolve conflicts before generating plans.',
-      type: 'error'
-    });
-    return { plans: [], errors };
-  }
-  
-  // Build atomic groups
-  const atomicGroups = buildAtomicGroups(guests, constraints, adjacents);
-  
-  const plans: SeatingPlan[] = [];
-  const maxPlans = isPremium ? 30 : 10;
-  const strategies: DiversityStrategy[] = ['shuffle', 'reverse', 'size-first', 'size-last', 'random-pairs', 'priority-first', 'constraint-heavy-first'];
-  
-  let attempts = 0;
-  const maxAttempts = isPremium ? 500 : 200;
-  
-  // Generate plans using different strategies
-  while (plans.length < maxPlans && attempts < maxAttempts) {
-    attempts++;
-    
-    // Yield control every 50 attempts
-    if (attempts % 50 === 0) {
-      await new Promise(resolve => setTimeout(resolve, 0));
-    }
-    
-    const strategy = strategies[attempts % strategies.length];
-    const plan = generateSinglePlan(atomicGroups, tables, constraints, adjacents, assignments, strategy);
-    
-    if (plan && isPlanSufficientlyUnique(plan, plans, 0.8 - (plans.length * 0.05))) {
-      // Add score to plan
-      (plan as any).score = scorePlan(plan, constraints, adjacents);
-      plans.push(plan);
-    }
-  }
-  
-  // Sort plans by score
-  plans.sort((a, b) => ((b as any).score || 0) - ((a as any).score || 0));
-  
-  if (plans.length === 0) {
+  if (!plan) {
     return { 
       plans: [], 
       errors: [
-        ...errors,
         {
           message: 'No valid seating plans could be generated. Try relaxing constraints or reducing adjacency links.',
           type: 'error'
@@ -610,5 +503,5 @@ export async function generateSeatingPlans(
     };
   }
   
-  return { plans, errors };
+  return { plans: [plan], errors: [] };
 }

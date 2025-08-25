@@ -394,14 +394,7 @@ const TableManager: React.FC = () => {
                     Add, remove, and manage tables for your seating arrangement. Each table can have between 1 and 20 seats.
                   </p>
                   
-                  {isPremium && state.user && (
-                    <div className="bg-green-50 border border-green-300 rounded-md p-2 max-w-max">
-                      <p className="text-sm text-green-700 flex items-center whitespace-nowrap">
-                        <Crown className="w-4 h-4 mr-1 text-yellow-500" />
-                        Premium feature: Double-click to rename any table.
-                      </p>
-                    </div>
-                  )}
+
                   
                   {!state.userSetTables && (
                     <div className="bg-blue-50 border border-[#586D78] rounded-md p-3">
@@ -530,12 +523,7 @@ const TableManager: React.FC = () => {
                   Specify which tables each guest can be assigned to. Enter table numbers separated by commas, or leave blank for automatic assignment.
                 </p>
                 
-                {isPremium && state.user && (
-                  <p className="text-sm text-[#586D78] bg-green-50 p-3 rounded-md border border-green-300">
-                    <Crown className="inline-block w-4 h-4 mr-1 text-yellow-500" />
-                    <strong>Premium feature:</strong> You can enter either table numbers or the exact table names you've created.
-                  </p>
-                )}
+
                 
                 <p className="text-sm text-[#586D78] bg-indigo-50 p-3 rounded-md">
                   <strong>Tip:</strong> You can assign a guest to multiple tables by entering comma-separated numbers (e.g., "1,3,5").

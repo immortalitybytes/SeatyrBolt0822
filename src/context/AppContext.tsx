@@ -282,6 +282,30 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       if (!newConstraints[guest1]) newConstraints[guest1] = {};
       if (!newConstraints[guest2]) newConstraints[guest2] = {};
 
+      // If a 'must' constraint is being removed, check if an adjacency exists
+      // and remove it to maintain consistent state
+      if (value !== 'must') {
+        const currentAdjacents1 = state.adjacents[guest1] || [];
+        const currentAdjacents2 = state.adjacents[guest2] || [];
+        
+        if (currentAdjacents1.includes(guest2) || currentAdjacents2.includes(guest1)) {
+          // Remove the adjacency to maintain consistency
+          const newAdjacents = { ...state.adjacents };
+          newAdjacents[guest1] = (newAdjacents[guest1] || []).filter(g => g !== guest2);
+          newAdjacents[guest2] = (newAdjacents[guest2] || []).filter(g => g !== guest1);
+          
+          // Update both constraints and adjacents
+          newConstraints[guest1][guest2] = value;
+          newConstraints[guest2][guest1] = value;
+          
+          return {
+            ...state,
+            constraints: newConstraints,
+            adjacents: newAdjacents,
+          };
+        }
+      }
+
       newConstraints[guest1][guest2] = value;
       newConstraints[guest2][guest1] = value;
 
@@ -293,24 +317,32 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
 
     case 'SET_ADJACENT': {
-      const { guest1, guest2 } = action.payload;
-      const newAdjacents = { ...state.adjacents };
+      const { guest1, guest2 } = action.payload as { guest1: string; guest2: string };
 
-      newAdjacents[guest1] = newAdjacents[guest1] || [];
-      if (!newAdjacents[guest1].includes(guest2)) {
-        newAdjacents[guest1].push(guest2);
+      // Defensive: ignore self-adjacency attempts
+      if (!guest1 || !guest2 || guest1 === guest2) return state;
+
+      const aList = state.adjacents[guest1] ?? [];
+      const bList = state.adjacents[guest2] ?? [];
+
+      // Idempotent: already linked
+      if (aList.includes(guest2)) return state;
+
+      // Degree cap (≤ 2) enforced at input time
+      if (aList.length >= 2 || bList.length >= 2) {
+        // TODO: swap console for your toast/notification
+        console.error('A guest can have at most two adjacent pairings.');
+        return state;
       }
 
-      newAdjacents[guest2] = newAdjacents[guest2] || [];
-      if (!newAdjacents[guest2].includes(guest1)) {
-        newAdjacents[guest2].push(guest1);
-      }
-
-      newState = {
+      return {
         ...state,
-        adjacents: newAdjacents,
+        adjacents: {
+          ...state.adjacents,
+          [guest1]: [...aList, guest2],
+          [guest2]: [...bList, guest1],
+        },
       };
-      break;
     }
     case 'REMOVE_ADJACENT': {
       const { guest1, guest2 } = action.payload;

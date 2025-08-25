@@ -3,6 +3,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global font consolidation to Tahoma for consistent look */
+* {
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+
 /* ZoeStyle1a: Capsule, solid, Marble Blue theme, with specified glows */
 .danstyle1c-btn {
   background: #EBECE6; /* Oyster background */
@@ -11,11 +16,11 @@
   border-radius: 9999px;
   box-shadow: 0 5px 5px 0 #323F4F; /* Default: 5px Cobalt Blue */
   font-weight: 600;
-  font-size: 0.75rem; /* Reduced by 25% from 1rem */
-  padding: 0 1.2em; /* Reduced by 25% from 1.6em */
-  min-width: 5.25em; /* Reduced by 25% from 7em */
-  min-height: 36px; /* Reduced by 25% from 48px */
-  height: 36px; /* Reduced by 25% from 48px */
+  font-size: 1rem; /* Changed to 1rem */
+  padding: 0 1.17em; /* Reduced by 35% from 1.8em */
+  min-width: 5.12em; /* Reduced by 35% from 7.88em */
+  min-height: 35.1px; /* Reduced by 35% from 54px */
+  height: 35.1px; /* Reduced by 35% from 54px */
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -75,11 +80,11 @@
   /* Slightly rounded rectangle instead of capsule */
   border-radius: 8px !important;
   
-  /* 20% size reduction with 30% less padding */
-  min-width: 5.6em !important;
-  min-height: 38.4px !important;
-  height: 38.4px !important;
-  padding: 0 0.9em !important;
+  /* Reduced by 35% from previous size */
+  min-width: 5.46em !important; /* 8.4 * 0.65 = 5.46 */
+  min-height: 37.44px !important; /* 57.6 * 0.65 = 37.44 */
+  height: 37.44px !important; /* 57.6 * 0.65 = 37.44 */
+  padding: 0 0.8775em !important; /* 1.35 * 0.65 = 0.8775 */
   
   /* Medium Forest Green background with Green White text and border */
   background: #2d702c !important;
@@ -90,8 +95,8 @@
   box-shadow: none !important;
   transform: none !important;
   
-  /* Slightly reduced font size (but not as much as the overall size reduction) */
-  font-size: 0.9rem !important;
+  /* Changed to 1rem */
+  font-size: 1rem !important; /* Changed to 1rem */
 }
 
 .danstyle1c-premium:hover {

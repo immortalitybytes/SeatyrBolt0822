@@ -9,7 +9,7 @@ import { redirectToCheckout } from '../lib/stripe';
 import { isPremiumSubscription, getMaxGuestLimit, getGuestLimitMessage } from '../utils/premium';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
-import { canReduceTables } from '../utils/tables';
+
 import { useNavigate } from 'react-router-dom';
 import { saveRecentSessionSettings } from '../lib/sessionSettings';
 
@@ -30,7 +30,6 @@ const GuestManager: React.FC = () => {
   const [videoVisible, setVideoVisible] = useState(false);
   const videoRef = useRef<HTMLIFrameElement>(null);
   const { user, subscription } = useApp();
-  const [showReduceNotice, setShowReduceNotice] = useState(false);
   
   // Use duplicateGuests from state (if available) or local state as fallback
   const [localDuplicateGuests, setLocalDuplicateGuests] = useState<string[]>([]);
@@ -161,12 +160,7 @@ const GuestManager: React.FC = () => {
     saveTablesForPremiumUsers();
   }, [state.tables, state.user, subscription, state.userSetTables]);
 
-  // Check if tables can be reduced whenever guest count changes
-  useEffect(() => {
-    const tableInfo = canReduceTables(state.guests, state.tables);
-    // Only show the notice if reduction is possible AND the user hasn't dismissed it
-    setShowReduceNotice(tableInfo.canReduce && !state.hideTableReductionNotice);
-  }, [state.guests, state.tables, state.hideTableReductionNotice]);
+
 
   // Function to toggle video visibility
   const toggleVideo = () => {
@@ -574,29 +568,7 @@ const GuestManager: React.FC = () => {
     setEditingGuestName(typeof guestName === "string" ? guestName : state.guests[index].name);
   };
 
-  // Calculate the minimum tables needed
-  const tableInfo = canReduceTables(state.guests, state.tables);
-  
-  const handleReduceTables = () => {
-    if (!tableInfo.canReduce) return;
-    
-    // Create a new array with the minimum required tables
-    const newTables = state.tables.slice(0, tableInfo.minTablesNeeded);
-    
-    dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
-    dispatch({ type: 'UPDATE_DEFAULT_TABLES', payload: newTables });
-    
-    // Hide the notice after reducing tables
-    setShowReduceNotice(false);
-    dispatch({ type: 'HIDE_TABLE_REDUCTION_NOTICE' });
-    
-    purgeSeatingPlans();
-  };
-  
-  const handleDismissReduceNotice = () => {
-    setShowReduceNotice(false);
-    dispatch({ type: 'HIDE_TABLE_REDUCTION_NOTICE' });
-  };
+
 
   const saveEditGuestName = (index: number) => {
     if (!editingGuestName.trim()) {
@@ -821,62 +793,122 @@ const GuestManager: React.FC = () => {
 
   // Function to count heads in a guest name
   const countHeads = (name: string): number => {
-    // Simple implementation - count ampersands and add 1
-    const ampersandCount = (name.match(/&/g) || []).length;
-    return ampersandCount + 1;
+    if (!name || !name.trim()) return 0;
+    
+    let seatCount = 1; // Start with 1 seat for the first person
+    
+    // Handle "plus one" and "plus 1" as identical
+    if (/plus\s+one/i.test(name)) {
+      seatCount += 1;
+    }
+    
+    // Split by various connectors while preserving the original structure for numeral detection
+    const connectorRegex = /(\s*[&+]\s*|\s+and\s+|\s+plus\s+)/gi;
+    const parts = name.split(connectorRegex);
+    
+    // Count additional seats for each connector found
+    for (let i = 1; i < parts.length; i += 2) {
+      const connector = parts[i];
+      if (connector && connector.match(/[&+]|and|plus/i)) {
+        seatCount++; // Each connector adds one more seat
+        
+        // Check if there's a numeral immediately following this connector
+        if (i + 1 < parts.length) {
+          const nextPart = parts[i + 1].trim();
+          
+          // Check for numerals first
+          const numeralMatch = nextPart.match(/^(\d+)/);
+          if (numeralMatch) {
+            const additionalSeats = parseInt(numeralMatch[1], 10);
+            if (!isNaN(additionalSeats) && additionalSeats > 0) {
+              seatCount += additionalSeats - 1; // Subtract 1 because we already counted the connector
+            }
+          } else {
+            // Check for spelled-out numbers
+            const spelledOutNumbers: Record<string, number> = {
+              'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+              'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+              'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14, 'fifteen': 15,
+              'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+              'thirty': 30, 'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+              'eighty': 80, 'ninety': 90, 'hundred': 100
+            };
+            
+            const lowerNextPart = nextPart.toLowerCase();
+            for (const [word, number] of Object.entries(spelledOutNumbers)) {
+              if (lowerNextPart.startsWith(word)) {
+                if (number > 0) {
+                  seatCount += number - 1;
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // Handle special cases like "guest" (additional unnamed person)
+    // This should work for cases like "Daniel White plus guest" = 2
+    if (/\bguest\b/i.test(name)) {
+      // Only add if we haven't already counted it through connector logic
+      // Check if "guest" appears after a connector like "plus"
+      const hasGuestAfterConnector = /\b(plus|and|&|\+)\s+guest\b/i.test(name);
+      if (hasGuestAfterConnector) {
+        // The connector logic already handled this, so don't add again
+      } else if (!/\b(plus|and|&|\+)\s+one\b/i.test(name)) {
+        // Only add if it's not "plus one" (which we already handled)
+        seatCount += 1;
+      }
+    }
+    
+    return seatCount;
   };
 
   return (
     <div className="space-y-6">
-      {/* Video Section with Collapse/Expand */}
-      <div className="flex justify-between items-start gap-4">
-        {/* For First-Time Users Box */}
-        <div className="w-1/4 bg-white rounded-lg shadow-md p-4 border border-[#566F9B]">
-          <h3 className="font-bold text-[#566F9B] mb-3">FOR FIRST-TIME USERS:</h3>
-          <div className="space-y-2 text-sm text-[#566F9B]">
-            <p>1.) Click "Load Test Guest List" below.</p>
-            <p>2.) Click "Your Rules" at the top.</p>
-            <p>3.) Pair and prevent as you like.</p>
-          </div>
-        </div>
-        
-        {/* Video Section - Reduced to 75% width */}
-        <div className="w-3/4 bg-white rounded-lg shadow-md overflow-hidden">
-          {videoVisible ? (
-            <div className="relative">
-              <div className="relative w-full pt-[37.5%] overflow-hidden">
-                <iframe
-                  ref={videoRef}
-                  src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
-                  allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
-                  title="SeatyrBannerV1cVideo"
-                  className="absolute top-0 left-0 w-full h-full"
-                />
-              </div>
+      {/* Video Section with Collapse/Expand - Full width */}
+      <div className="w-full bg-white rounded-lg shadow-md overflow-hidden">
+        {videoVisible ? (
+          <div className="relative">
+            {/* Hide Section button moved above video with spacing */}
+            <div className="p-2 flex justify-end">
               <button 
                 onClick={toggleVideo}
-                className="danstyle1c-btn absolute top-2 right-2"
+                className="danstyle1c-btn"
                 aria-label="Hide video section"
               >
                 <X className="w-4 h-4 mr-2" />
                 Hide Section
               </button>
             </div>
-          ) : (
-            <div className="p-4 flex justify-end items-center">
-              <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
-              <button 
-                onClick={toggleVideo}
-                className="danstyle1c-btn"
-                aria-label="Replay video"
-              >
-                <Play className="w-4 h-4 mr-2" />
-                Replay Video
-              </button>
+            {/* Video shifted down to accommodate button */}
+            <div className="relative w-full pt-[37.5%] overflow-hidden">
+              <iframe
+                ref={videoRef}
+                src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
+                allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
+                title="SeatyrBannerV1cVideo"
+                className="absolute top-0 left-0 w-full h-full"
+              />
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="p-4 flex justify-end items-center">
+            <h3 className="text-lg font-medium text-[#586D78] mr-4">Quick Overview Intro</h3>
+            <button 
+              onClick={toggleVideo}
+              className="danstyle1c-btn"
+              aria-label="Replay video"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Replay Video
+            </button>
+          </div>
+        )}
       </div>
+
+
 
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <Users className="mr-2" />
@@ -884,8 +916,34 @@ const GuestManager: React.FC = () => {
 
       </h1>
       
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-grow space-y-6">
+      <div className="flex items-start gap-4">
+        {/* For First-Time Users Box - fixed width, won't expand */}
+        <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
+          <h3 className="font-bold text-[#566F9B] mb-3" style={{ fontSize: '1.25em' }}>FOR FIRST-TIME USERS:</h3>
+          <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.4' }}>
+            <p>1.) Click "Load Test Guest List" button.</p>
+            <p>2.) Click "Your Rules" at the top.</p>
+            <p>3.) Pair and prevent as you like.</p>
+          </div>
+          
+          {/* Pulsing Arrow Emoji for Unsigned Users - changed to right arrow */}
+          {!user && (
+            <div className="flex justify-center mt-4">
+              <div 
+                className="pulsing-arrow"
+                style={{
+                  fontSize: '36pt',
+                  animation: 'pulseAndColor 2s ease-in-out infinite',
+                  animationIterationCount: 5
+                }}
+              >
+                ➡️
+              </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex-1 space-y-6">
           <Card>
             <div className="space-y-4">
               <div>
@@ -944,7 +1002,7 @@ const GuestManager: React.FC = () => {
                 </div>
               )}
               
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+              <div className="flex flex-col space-y-2">
                 <textarea
                   value={guestInput}
                   onChange={(e) => {
@@ -957,34 +1015,16 @@ const GuestManager: React.FC = () => {
                     }
                   }}
                   placeholder="e.g., Alice, Bob&#13;&#10;Carol & David"
-                  className="flex-1 px-3 py-2 border border-[#586D78] border-[1.5px] rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] min-h-[100px]"
+                  className="w-full px-3 py-2 border border-[#586D78] border-[1.5px] rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] min-h-[100px]"
                   onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && handleAddGuests()}
                 />
-                <button
-                  onClick={handleAddGuests}
-                  className="danstyle1c-btn"
-                  disabled={!isPremium && state.guests.length >= maxGuestLimit}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add
-                </button>
               </div>
               
               {importError && (
                 <div className="text-red-600 text-sm mt-2">{importError}</div>
               )}
               
-              {/* Animated Arrow */}
-              <div className="relative mb-4">
-                <div 
-                  className="animated-arrow"
-                  style={{
-                    left: '25%',
-                    top: '-80px',
-                    transform: 'rotate(-45deg)'
-                  }}
-                ></div>
-              </div>
+
               
               <div className="flex space-x-2">
                 <button
@@ -1010,6 +1050,15 @@ const GuestManager: React.FC = () => {
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
                 </button>
+                
+                <button
+                  onClick={handleAddGuests}
+                  className="danstyle1c-btn"
+                  disabled={!isPremium && state.guests.length >= maxGuestLimit}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add
+                </button>
               </div>
               
               {!isPremium && state.guests.length >= maxGuestLimit && (
@@ -1027,7 +1076,8 @@ const GuestManager: React.FC = () => {
 
       {/* MainSavedSettings collapsible section - Always present */}
       <button
-        className="bg-indigo-50 border border-indigo-200 rounded-md p-3 w-full flex justify-between items-center hover:bg-indigo-100 transition-colors cursor-pointer"
+        className="border border-indigo-200 rounded-md p-3 w-full flex justify-between items-center hover:bg-[#d7e5e5] transition-colors cursor-pointer"
+        style={{ backgroundColor: '#d7e5e5' }}
         onClick={() => {
           // When opening, fetch the latest data
           if (!showSavedSettings && user) {
@@ -1046,25 +1096,6 @@ const GuestManager: React.FC = () => {
 
       {showSavedSettings && (
         <Card>
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-[#586D78]">Saved Configurations</h2>
-            <div className="flex space-x-2">
-              <button
-                className="danstyle1c-btn"
-                onClick={handleRefreshSavedSettings}
-                disabled={loadingSavedSettings}
-              >
-                {loadingSavedSettings ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-                {loadingSavedSettings ? 'Refreshing...' : 'Refresh'}
-              </button>
-              <button
-                onClick={() => setShowSavedSettings(false)}
-                className="danstyle1c-btn"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
 
           {!user ? (
             <div className="text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -1137,14 +1168,7 @@ const GuestManager: React.FC = () => {
             </div>
           )}
 
-          <div className="flex justify-end mt-4">
-            <button
-              className="danstyle1c-btn"
-              onClick={() => setShowSavedSettings(false)}
-            >
-              Collapse Section
-            </button>
-          </div>
+
         </Card>
       )}
 
@@ -1384,5 +1408,38 @@ const GuestManager: React.FC = () => {
     </div>
   );
 };
+
+// Add CSS animation for the pulsing arrow
+if (typeof window !== 'undefined') {
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes pulseAndColor {
+      0% { 
+        transform: scale(1); 
+        filter: hue-rotate(0deg) saturate(1) brightness(1);
+      }
+      25% { 
+        transform: scale(1.2); 
+        filter: hue-rotate(90deg) saturate(1.5) brightness(1.2);
+      }
+      50% { 
+        transform: scale(1.4); 
+        filter: hue-rotate(180deg) saturate(2) brightness(1.4);
+      }
+      75% { 
+        transform: scale(1.2); 
+        filter: hue-rotate(270deg) saturate(1.5) brightness(1.2);
+      }
+      100% { 
+        transform: scale(1); 
+        filter: hue-rotate(360deg) saturate(1) brightness(1);
+      }
+    }
+  `;
+  if (!document.querySelector('#pulsing-arrow-styles')) {
+    style.id = 'pulsing-arrow-styles';
+    document.head.appendChild(style);
+  }
+}
 
 export default GuestManager;

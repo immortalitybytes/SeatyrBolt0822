@@ -282,12 +282,7 @@ const AssignmentManager: React.FC = () => {
             Specify which tables each guest can be assigned to. Enter table numbers separated by commas, or leave blank for automatic assignment.
           </p>
           
-          {isPremium && state.user && (
-            <p className="text-sm text-[#586D78] bg-green-50 p-3 rounded-md border border-green-300">
-              <Crown className="inline-block w-4 h-4 mr-1 text-yellow-500" />
-              <strong>Premium feature:</strong> You can enter either table numbers or the exact table names you've created.
-            </p>
-          )}
+
           
           <p className="text-sm text-[#586D78] bg-indigo-50 p-3 rounded-md">
             <strong>Tip:</strong> You can assign a guest to multiple tables by entering comma-separated numbers (e.g., "1,3,5").

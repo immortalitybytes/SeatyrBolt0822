@@ -325,13 +325,16 @@ const Header: React.FC = () => {
               <img
                 src="https://i.imgur.com/FD3PWnT.png"
                 alt="Seatyr Logo"
-                className="h-40 w-auto mr-8"
+                className="h-6 w-auto mr-8"
+                style={{ height: "8rem" }} // Changed to 8rem
               />
               <div className="flex flex-col">
-                <h3 className="text-6xl font-bold text-[#586D78]">Seatyr</h3>
-                <span className="text-xs text-[#586D78]" style={{ marginTop: "15px" }}>Preview Version 0.91-v2b</span>
-                <span className="text-xl italic text-[#586D78]" style={{ marginTop: "15px" }}>Guaranteed Fewer Headaches...</span>
-                <span className="text-xl italic text-[#586D78]">*seating-related headaches only.</span>
+                <div className="relative">
+                  <h3 className="text-8xl font-bold text-[#586D78]" style={{ fontSize: "4.3rem", lineHeight: "1" }}>Seatyr</h3>
+                  <span className="text-xs text-[#586D78] absolute" style={{ top: "4.5rem", left: "0", whiteSpace: "nowrap", fontSize: "0.8rem" }}>Preview Version 0.975</span>
+                </div>
+                <span className="text-2xl italic text-[#586D78]" style={{ marginTop: "2rem", fontSize: "0.9rem" }}>Guaranteed Fewer Headaches...</span>
+                <span className="text-2xl italic text-[#586D78]" style={{ fontSize: "0.9rem", marginTop: "0.3rem", lineHeight: "0.3" }}>*seating-related headaches only.</span>
               </div>
             </div>
 
