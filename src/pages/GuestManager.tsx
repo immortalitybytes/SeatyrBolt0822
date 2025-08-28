@@ -9,6 +9,7 @@ import { redirectToCheckout } from '../lib/stripe';
 import { isPremiumSubscription, getMaxGuestLimit, getGuestLimitMessage } from '../utils/premium';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
+import { getDisplayName } from '../utils/guestCount';
 
 import { useNavigate } from 'react-router-dom';
 import { saveRecentSessionSettings } from '../lib/sessionSettings';
@@ -17,7 +18,7 @@ import { saveRecentSessionSettings } from '../lib/sessionSettings';
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
 const GuestManager: React.FC = () => {
-  const { state, dispatch } = useApp();
+  const { state, dispatch, user, subscription } = useApp();
   const [guestInput, setGuestInput] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -29,7 +30,6 @@ const GuestManager: React.FC = () => {
   const [sortOption, setSortOption] = useState<SortOption>('as-entered');
   const [videoVisible, setVideoVisible] = useState(false);
   const videoRef = useRef<HTMLIFrameElement>(null);
-  const { user, subscription } = useApp();
   
   // Use duplicateGuests from state (if available) or local state as fallback
   const [localDuplicateGuests, setLocalDuplicateGuests] = useState<string[]>([]);
@@ -594,7 +594,7 @@ const GuestManager: React.FC = () => {
       
       dispatch({
         type: 'RENAME_GUEST',
-        payload: { index, name: parsed.name }
+        payload: { oldName: currentGuest.name, newName: parsed.name }
       });
       
       // Update seat count if it changed
@@ -709,6 +709,22 @@ const GuestManager: React.FC = () => {
     dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
   };
 
+  // Helper function for current table sorting
+  const currentTableKey = (name: string, plan: { tables: { id: number; seats: any[] }[] } | null, assigns: Record<string, string> | undefined) => {
+    if (plan?.tables) {
+      for (const t of plan.tables) {
+        const names = (t.seats || []).map((s: any) => typeof s === 'string' ? s : s?.name).filter(Boolean);
+        if (names.includes(name)) return t.id;
+      }
+    }
+    const raw = assigns?.[name];
+    if (raw) {
+      const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n));
+      if (ids.length) return ids[0];
+    }
+    return Number.POSITIVE_INFINITY;
+  };
+
   // Function to get sorted guests
   const getSortedGuests = () => {
     if (sortOption === 'as-entered') {
@@ -743,31 +759,8 @@ const GuestManager: React.FC = () => {
         
         // Use the currently viewed plan
         const plan = state.seatingPlans[state.currentPlanIndex];
-        let tableA = Number.MAX_SAFE_INTEGER;  // Default to high value for unassigned
-        let tableB = Number.MAX_SAFE_INTEGER;
-        let foundA = false;
-        let foundB = false;
-        
-        // Find which table each guest is assigned to
-        for (const table of plan.tables) {
-          for (const seat of table.seats) {
-            if (seat.name === a.name) {
-              tableA = table.id;
-              foundA = true;
-            }
-            if (seat.name === b.name) {
-              tableB = table.id;
-              foundB = true;
-            }
-            // Exit early if both found
-            if (foundA && foundB) break;
-          }
-          if (foundA && foundB) break;
-        }
-        
-        // Sort unassigned guests last
-        if (!foundA && foundB) return 1;
-        if (foundA && !foundB) return -1;
+        const tableA = currentTableKey(a.name, plan, state.assignments);
+        const tableB = currentTableKey(b.name, plan, state.assignments);
         
         return tableA - tableB;
       }
@@ -865,8 +858,8 @@ const GuestManager: React.FC = () => {
     return seatCount;
   };
 
-  return (
-    <div className="space-y-6">
+    return (
+    <div className="space-y-14">
       {/* Video Section with Collapse/Expand - Full width */}
       <div className="w-full bg-white rounded-lg shadow-md overflow-hidden">
         {videoVisible ? (
@@ -910,62 +903,54 @@ const GuestManager: React.FC = () => {
 
 
 
-      <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
-        <Users className="mr-2" />
-        Guest Manager
-
-      </h1>
+      {/* Guest Manager heading hidden per P2.B */}
+      {null}
       
-      <div className="flex items-start gap-4">
+      <div className="flex items-stretch gap-4">
         {/* For First-Time Users Box - fixed width, won't expand */}
-        <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
-          <h3 className="font-bold text-[#566F9B] mb-3" style={{ fontSize: '1.25em' }}>FOR FIRST-TIME USERS:</h3>
-          <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.4' }}>
-            <p>1.) Click "Load Test Guest List" button.</p>
-            <p>2.) Click "Your Rules" at the top.</p>
-            <p>3.) Pair and prevent as you like.</p>
-          </div>
-          
-          {/* Pulsing Arrow Emoji for Unsigned Users - changed to right arrow */}
-          {!user && (
-            <div className="flex justify-center mt-4">
-              <div 
-                className="pulsing-arrow"
-                style={{
-                  fontSize: '36pt',
-                  animation: 'pulseAndColor 2s ease-in-out infinite',
-                  animationIterationCount: 5
-                }}
-              >
-                ➡️
-              </div>
+        <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
+          <h3 className="font-bold text-[#566F9B] mb-3" style={{ fontSize: '1.25em' }}>For First-Time Users</h3>
+          <div className="h-full flex flex-col justify-center text-left">
+            <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.4' }}>
+              <p>1.) Click "Load Test Guest List" button.</p>
+              <p>2.) Click "Your Rules" at the top.</p>
+              <p>3.) Pair and prevent as you like.</p>
             </div>
-          )}
+            
+            {/* Pulsing Arrow Emoji for Unsigned Users - changed to right arrow */}
+            {!user && (
+              <div className="flex justify-center mt-4">
+                <div 
+                  className="pulsing-arrow"
+                  style={{
+                    fontSize: '36pt',
+                    animation: 'pulseAndColor 2s ease-in-out infinite',
+                    animationIterationCount: 5
+                  }}
+                >
+                  ➡️
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         
-        <div className="flex-1 space-y-6">
+        <div className="flex-1 space-y-14 h-full">
           <Card>
-            <div className="space-y-4">
+                          <div className="space-y-14">
               <div>
                 <p className="text-gray-700 text-[17px]">Enter guest names separated by commas or line breaks.</p>
                 <p className="text-gray-700 text-[17px]">Connect couples and parties with an ampersand (&).</p>
                 
                 {!isPremium && (
-                                  <div className={`mt-2 ${isApproachingLimit ? 'text-[#88abc6] font-medium' : 'text-sm text-[#586D78]'}`}>
-                  <p>Free plan: {getGuestLimitMessage(subscription, state.guests.length)}</p>
-                  {isApproachingLimit && (
-                    <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                      <div 
-                        className={`h-2 rounded-full ${
-                          guestPercentage >= 95 ? 'bg-red-500' : 
-                          guestPercentage >= 80 ? 'bg-[#88abc6]' : 
-                          'bg-green-500'
-                        }`}
-                        style={{ width: `${guestPercentage}%` }}
-                      ></div>
-                    </div>
-                  )}
-                </div>
+                  <div className="mt-2">
+                    {(() => {
+                      const totalSeats = (state.guests ?? []).reduce((s,g)=> s + Math.max(1, g.count ?? 1), 0);
+                      return (
+                        <p className="text-sm text-[#586D78]">Free plan: {totalSeats}/80 guests used</p>
+                      );
+                    })()}
+                  </div>
                 )}
                 
                 {isPremium && state.user && (
@@ -1003,6 +988,7 @@ const GuestManager: React.FC = () => {
               )}
               
               <div className="flex flex-col space-y-2">
+                <div className="mt-2" />
                 <textarea
                   value={guestInput}
                   onChange={(e) => {
@@ -1016,6 +1002,7 @@ const GuestManager: React.FC = () => {
                   }}
                   placeholder="e.g., Alice, Bob&#13;&#10;Carol & David"
                   className="w-full px-3 py-2 border border-[#586D78] border-[1.5px] rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] min-h-[100px]"
+                  rows={4}
                   onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && handleAddGuests()}
                 />
               </div>
@@ -1029,7 +1016,7 @@ const GuestManager: React.FC = () => {
               <div className="flex space-x-2">
                 <button
                   onClick={loadTestGuestList}
-                  className={`danstyle1c-btn ${!user ? 'visitor-test-button' : ''}`}
+                  className={`danstyle1c-btn h-16 inline-flex items-center justify-center px-4 ${!user ? 'visitor-test-button' : ''}`}
                   disabled={!isPremium && state.guests.length + 26 > maxGuestLimit}
                 >
                   Load Test Guest List
@@ -1045,7 +1032,7 @@ const GuestManager: React.FC = () => {
                 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn"
+                  className="danstyle1c-btn h-16 inline-flex items-center justify-center px-4"
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -1053,7 +1040,7 @@ const GuestManager: React.FC = () => {
                 
                 <button
                   onClick={handleAddGuests}
-                  className="danstyle1c-btn"
+                  className="danstyle1c-btn h-16 inline-flex items-center justify-center px-4"
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -1133,7 +1120,7 @@ const GuestManager: React.FC = () => {
               No saved settings found. Save your settings from the Seating Plan page.
             </div>
           ) : (
-            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            <div className="space-y-14 max-h-[400px] overflow-y-auto">
               {savedSettings.map((setting) => (
                 <div
                   key={setting.id}
@@ -1177,7 +1164,7 @@ const GuestManager: React.FC = () => {
       <Card 
         title={
           <div className="w-full flex items-center justify-between">
-            <span>Guest List ({state.guests.length}{!isPremium ? '/80' : ''})</span>
+            <span>Guest List ({state.guests.reduce((sum, guest) => sum + guest.count, 0)}{!isPremium ? '/80' : ''})</span>
             <div className="flex space-x-2">
               <span className="text-gray-700 font-medium flex items-center">
                 <ArrowDownAZ className="w-4 h-4 mr-1" />
@@ -1258,13 +1245,16 @@ const GuestManager: React.FC = () => {
                         onDoubleClick={() => handleRenameGuest(originalIndex, guest.name)}
                         style={{ cursor: "pointer" }}
                       >
-                        {guest.name.includes('%') ? (
-                          <>
-                            {guest.name.split('%')[0]}
-                            <span style={{ color: '#959595' }}>%</span>
-                            {guest.name.split('%')[1]}
-                          </>
-                        ) : guest.name}
+                        {(() => {
+                          const displayName = getDisplayName(guest.name);
+                          return displayName.includes('%') ? (
+                            <>
+                              {displayName.split('%')[0]}
+                              <span style={{ color: '#959595' }}>%</span>
+                              {displayName.split('%')[1]}
+                            </>
+                          ) : displayName;
+                        })()}
                         <Edit2 className="w-3 h-3 ml-1 text-gray-400 cursor-pointer" 
                             onClick={() => handleRenameGuest(originalIndex, guest.name)} />
                       </span>

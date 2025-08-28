@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, X, MapPin, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -8,6 +8,7 @@ import { saveRecentSessionSettings } from '../lib/sessionSettings';
 import { canReduceTables } from '../utils/tables';
 import { useNavigate } from 'react-router-dom';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
+
 
 const TableManager: React.FC = () => {
   const { state, dispatch } = useApp();
@@ -19,6 +20,17 @@ const TableManager: React.FC = () => {
   const [isTablesOpen, setIsTablesOpen] = useState(false);
   const [isAssignmentsOpen, setIsAssignmentsOpen] = useState(true);
   const navigate = useNavigate();
+  
+  // New#8 Fix: Separate autocomplete state for must/cannot inputs
+  const [mustQuery, setMustQuery] = useState<Record<string, string>>({});
+  const [mustSuggestions, setMustSuggestions] = useState<Record<string, string[]>>({});
+  const [mustActiveIndex, setMustActiveIndex] = useState<Record<string, number>>({});
+  const [mustIsFocused, setMustIsFocused] = useState<Record<string, boolean>>({});
+  
+  const [cannotQuery, setCannotQuery] = useState<Record<string, string>>({});
+  const [cannotSuggestions, setCannotSuggestions] = useState<Record<string, string[]>>({});
+  const [cannotActiveIndex, setCannotActiveIndex] = useState<Record<string, number>>({});
+  const [cannotIsFocused, setCannotIsFocused] = useState<Record<string, boolean>>({});
   
   const totalSeats = state.tables.reduce((sum, table) => sum + table.seats, 0);
   
@@ -60,6 +72,75 @@ const TableManager: React.FC = () => {
     setShowReduceNotice(tableInfo.canReduce && !state.hideTableReductionNotice);
   }, [state.guests, state.tables, state.hideTableReductionNotice]);
   
+  // New#8 Fix: Initialize query state when guests change
+  useEffect(() => {
+    const newMustQuery: Record<string, string> = {};
+    const newCannotQuery: Record<string, string> = {};
+    
+    state.guests.forEach(guest => {
+      const mustConstraints = getMustConstraints(guest.name);
+      const cannotConstraints = getCannotConstraints(guest.name);
+      const adjacentGuests = getAdjacentGuests(guest.name);
+      
+      // Initialize must query with current constraints + ★adj★ format
+      const mustValue = [...mustConstraints, ...(adjacentGuests ? adjacentGuests.map(ag => `★${ag}★`) : [])].join(', ');
+      newMustQuery[guest.name] = mustValue;
+      
+      // Initialize cannot query with current constraints
+      newCannotQuery[guest.name] = cannotConstraints.join(', ');
+    });
+    
+    setMustQuery(newMustQuery);
+    setCannotQuery(newCannotQuery);
+  }, [state.guests, state.constraints, state.adjacents]);
+  
+  // New#8 Fix: Debounced query processing for autocomplete
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Process must queries
+      Object.keys(mustQuery).forEach(guestName => {
+        const query = mustQuery[guestName];
+        if (!query) {
+          setMustSuggestions(prev => ({ ...prev, [guestName]: [] }));
+          return;
+        }
+        
+        const ignore = /\b(and|plus|with|guest|guests?|one|two|three|four|five|six|seven|eight|nine|ten)\b|[&+]|\d+/gi;
+        const norm = (s: string) => s.toLowerCase().replace(ignore, '').trim();
+        const q = query.toLowerCase();
+        
+        const suggestions = state.guests
+          .map(g => g.name)
+          .filter(n => norm(n).includes(norm(q)))
+          .slice(0, 10);
+        
+        setMustSuggestions(prev => ({ ...prev, [guestName]: suggestions }));
+      });
+      
+      // Process cannot queries
+      Object.keys(cannotQuery).forEach(guestName => {
+        const query = cannotQuery[guestName];
+        if (!query) {
+          setCannotSuggestions(prev => ({ ...prev, [guestName]: [] }));
+          return;
+        }
+        
+        const ignore = /\b(and|plus|with|guest|guests?|one|two|three|four|five|six|seven|eight|nine|ten)\b|[&+]|\d+/gi;
+        const norm = (s: string) => s.toLowerCase().replace(ignore, '').trim();
+        const q = query.toLowerCase();
+        
+        const suggestions = state.guests
+          .map(g => g.name)
+          .filter(n => norm(n).includes(norm(q)))
+          .slice(0, 10);
+        
+        setCannotSuggestions(prev => ({ ...prev, [guestName]: suggestions }));
+      });
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [mustQuery, cannotQuery, state.guests]);
+  
   const handleAddTable = () => {
     if (state.tables.length >= 100) {
       alert('Maximum number of tables (100) reached.');
@@ -67,7 +148,7 @@ const TableManager: React.FC = () => {
     }
     
     dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
-    dispatch({ type: 'ADD_TABLE' });
+    dispatch({ type: 'ADD_TABLE', payload: {} });
     purgeSeatingPlans();
     
     // Hide the table reduction notice when user manually adds tables
@@ -230,7 +311,7 @@ const TableManager: React.FC = () => {
       purgeSeatingPlans();
     } catch (error) {
       console.error('Error updating assignment:', error);
-      setErrorMessage(`Failed to update assignment: ${error.message || 'An unexpected error occurred'}`);
+      setErrorMessage(`Failed to update assignment: ${error instanceof Error ? error.message : 'An unexpected error occurred'}`);
     }
   };
   
@@ -258,15 +339,23 @@ const TableManager: React.FC = () => {
       
       // Add new constraints
       newMusts.forEach(mustGuest => {
-        // Skip if it's the same guest or if constraint already exists
-        if (mustGuest !== guestName && !currentMusts.includes(mustGuest)) {
-          // Verify the guest exists in the guest list
-          const guestExists = state.guests.some(g => g.name === mustGuest);
-          if (guestExists) {
-            dispatch({
-              type: 'SET_CONSTRAINT',
-              payload: { guest1: guestName, guest2: mustGuest, value: 'must' }
-            });
+        if (mustGuest.startsWith('★') && mustGuest.endsWith('★')) {
+          const adj = mustGuest.slice(1, -1);
+          if (state.adjacents[guestName]?.length < 2) {
+            dispatch({ type: 'SET_ADJACENT', payload: { guest1: guestName, guest2: adj } });
+            dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guestName, guest2: adj, value: 'must' } });
+          }
+        } else {
+          // Skip if it's the same guest or if constraint already exists
+          if (mustGuest !== guestName && !currentMusts.includes(mustGuest)) {
+            // Verify the guest exists in the guest list
+            const guestExists = state.guests.some(g => g.name === mustGuest);
+            if (guestExists) {
+              dispatch({
+                type: 'SET_CONSTRAINT',
+                payload: { guest1: guestName, guest2: mustGuest, value: 'must' }
+              });
+            }
           }
         }
       });
@@ -275,7 +364,7 @@ const TableManager: React.FC = () => {
       purgeSeatingPlans();
     } catch (error) {
       console.error('Error updating must constraints:', error);
-      setErrorMessage(`Failed to update must constraints: ${error.message || 'An unexpected error occurred'}`);
+      setErrorMessage(`Failed to update must constraints: ${error instanceof Error ? error.message : 'An unexpected error occurred'}`);
     }
   };
   
@@ -319,7 +408,7 @@ const TableManager: React.FC = () => {
       purgeSeatingPlans();
     } catch (error) {
       console.error('Error updating cannot constraints:', error);
-      setErrorMessage(`Failed to update cannot constraints: ${error.message || 'An unexpected error occurred'}`);
+      setErrorMessage(`Failed to update cannot constraints: ${error instanceof Error ? error.message : 'An unexpected error occurred'}`);
     }
   };
   
@@ -362,7 +451,110 @@ const TableManager: React.FC = () => {
     return state.adjacents[guestName];
   };
   
+  // New#8 Fix: Helper functions for autocomplete
+  const addMustChip = (guestName: string, chipValue: string) => {
+    const currentValue = mustQuery[guestName] || '';
+    const chips = currentValue.split(',').map(s => s.trim()).filter(Boolean);
+    if (!chips.includes(chipValue)) {
+      const newValue = chips.length > 0 ? `${chips.join(', ')}, ${chipValue}` : chipValue;
+      setMustQuery(prev => ({ ...prev, [guestName]: newValue }));
+      handleUpdateMustConstraints(guestName, newValue);
+    }
+  };
+  
+  const removeMustChip = (guestName: string, chipValue: string) => {
+    const currentValue = mustQuery[guestName] || '';
+    const chips = currentValue.split(',').map(s => s.trim()).filter(Boolean);
+    const newChips = chips.filter(chip => chip !== chipValue);
+    const newValue = newChips.join(', ');
+    setMustQuery(prev => ({ ...prev, [guestName]: newValue }));
+    handleUpdateMustConstraints(guestName, newValue);
+  };
+  
+  const addCannotChip = (guestName: string, chipValue: string) => {
+    const currentValue = cannotQuery[guestName] || '';
+    const chips = currentValue.split(',').map(s => s.trim()).filter(Boolean);
+    if (!chips.includes(chipValue)) {
+      const newValue = chips.length > 0 ? `${chips.join(', ')}, ${chipValue}` : chipValue;
+      setCannotQuery(prev => ({ ...prev, [guestName]: newValue }));
+      handleUpdateCannotConstraints(guestName, newValue);
+    }
+  };
+  
+  const removeCannotChip = (guestName: string, chipValue: string) => {
+    const currentValue = cannotQuery[guestName] || '';
+    const chips = currentValue.split(',').map(s => s.trim()).filter(Boolean);
+    const newChips = chips.filter(chip => chip !== chipValue);
+    const newValue = newChips.join(', ');
+    setCannotQuery(prev => ({ ...prev, [guestName]: newValue }));
+    handleUpdateCannotConstraints(guestName, newValue);
+  };
+  
+  const handleMustKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, guestName: string) => {
+    const suggestions = mustSuggestions[guestName] || [];
+    const activeIndex = mustActiveIndex[guestName] || -1;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setMustActiveIndex(prev => ({ 
+        ...prev, 
+        [guestName]: Math.min(activeIndex + 1, suggestions.length - 1) 
+      }));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setMustActiveIndex(prev => ({ 
+        ...prev, 
+        [guestName]: Math.max(activeIndex - 1, 0) 
+      }));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const selected = suggestions[activeIndex] || mustQuery[guestName]?.trim();
+      if (selected) {
+        addMustChip(guestName, selected);
+        setMustQuery(prev => ({ ...prev, [guestName]: '' }));
+        setMustActiveIndex(prev => ({ ...prev, [guestName]: -1 }));
+      }
+    }
+  };
+  
+  const handleCannotKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, guestName: string) => {
+    const suggestions = cannotSuggestions[guestName] || [];
+    const activeIndex = cannotActiveIndex[guestName] || -1;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setCannotActiveIndex(prev => ({ 
+        ...prev, 
+        [guestName]: Math.min(activeIndex + 1, suggestions.length - 1) 
+      }));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setCannotActiveIndex(prev => ({ 
+        ...prev, 
+        [guestName]: Math.max(activeIndex - 1, 0) 
+      }));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const selected = suggestions[activeIndex] || cannotQuery[guestName]?.trim();
+      if (selected) {
+        addCannotChip(guestName, selected);
+        setCannotQuery(prev => ({ ...prev, [guestName]: '' }));
+        setCannotActiveIndex(prev => ({ ...prev, [guestName]: -1 }));
+      }
+    }
+  };
+  
   const accordionHeaderStyles = "flex justify-between items-center p-3 rounded-md bg-[#D7E5E5] cursor-pointer";
+  
+  // New#8 Fix: Chip component for displaying constraints
+  const Chip = ({ label, tone, onRemove }: { label: string; tone: 'must' | 'cannot'; onRemove: () => void }) => {
+    return (
+      <span className={`rounded-full px-2 py-0.5 text-sm mr-1 bg-${tone === 'must' ? 'green' : 'red'}-50`}>
+        {label}
+        <X className="ml-1 w-3 h-3 cursor-pointer" onClick={onRemove} />
+      </span>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -391,7 +583,8 @@ const TableManager: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div className="space-y-4 w-1/2">
                   <p className="text-gray-700">
-                    Add, remove, and manage tables for your seating arrangement. Each table can have between 1 and 20 seats.
+                    Add, remove, and manage tables for your seating arrangement.<br />
+                    Each table can have between 1 and 20 seats.
                   </p>
                   
 
@@ -519,14 +712,9 @@ const TableManager: React.FC = () => {
           <div className="mt-4 space-y-4">
             <Card>
               <div className="space-y-4">
-                <p className="text-[#586D78]">
-                  Specify which tables each guest can be assigned to. Enter table numbers separated by commas, or leave blank for automatic assignment.
-                </p>
-                
-
-                
-                <p className="text-sm text-[#586D78] bg-indigo-50 p-3 rounded-md">
-                  <strong>Tip:</strong> You can assign a guest to multiple tables by entering comma-separated numbers (e.g., "1,3,5").
+                <p className="text-sm text-gray-700">
+                  You can specify which tables each guest can be assigned to.<br />
+                  Simply, enter table numbers separated by commas, or leave blank for automatic assignment. Tip: You can assign a guest to a range of tables by entering comma-separated numbers (e.g., "1,3,5").<br />
                   This means the seating algorithm will place them at one of these tables.
                 </p>
               </div>
@@ -554,9 +742,12 @@ const TableManager: React.FC = () => {
                   const mustConstraints = getMustConstraints(guest.name);
                   const cannotConstraints = getCannotConstraints(guest.name);
                   
+                  // Create mustValue with ★adj★ format
+                  const mustValue = [...mustConstraints, ...(adjacentGuests ? adjacentGuests.map(ag => `★${ag}★`) : [])].join(', ');
+                  
                   return (
-                    <div key={`${guest.name}-${index}`} className="p-4 border border-gray-200 rounded-lg">
-                      <div className="flex flex-col gap-4">
+                    <div key={`${guest.name}-${index}`} className="p-4 border-4 border-white rounded-lg">
+                      <div className="flex flex-col gap-2">
                         <div className="min-w-[150px] font-medium text-[#586D78]">
                           <div>
                             {guest.name.includes('%') ? (
@@ -565,17 +756,16 @@ const TableManager: React.FC = () => {
                                 <span style={{ color: '#959595' }}>%{guest.name.split('%')[1]}</span>
                               </>
                             ) : guest.name}
-                            {guest.count > 1 && (
-                              <span className="ml-2 text-sm text-gray-700 font-medium block mt-1">
-                                Party size: {guest.count} {guest.count === 2 ? 'people' : 'people'}
-                              </span>
-                            )}
+                            {/* Party size chip inline */}
+                            <span className="ml-2 rounded border px-2 py-0.5 text-xs text-gray-700">
+                              Party size: {guest.count} people
+                            </span>
                           </div>
                           
                           {/* Display adjacent pairing information */}
                           {adjacentGuests && adjacentGuests.length > 0 && (
                             <div className="text-xs text-amber-600 mt-1">
-                              Adjacent to: {adjacentGuests.join(', ')}
+                              ⭐ {adjacentGuests.join(' ⭐ ')} ⭐
                             </div>
                           )}
                         </div>
@@ -616,14 +806,66 @@ const TableManager: React.FC = () => {
                             >
                               Must Sit With
                             </label>
-                            <input
-                              id={`must-${guest.name}`}
-                              type="text"
-                              value={mustConstraints.join(', ')}
-                              onChange={(e) => handleUpdateMustConstraints(guest.name, e.target.value)}
-                              placeholder="Enter guest names separated by commas"
-                              className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-green-600"
-                            />
+                            <div className="relative">
+                              <input
+                                id={`must-${guest.name}`}
+                                type="text"
+                                value={mustQuery[guest.name] || ''}
+                                onChange={(e) => setMustQuery(prev => ({ ...prev, [guest.name]: e.target.value }))}
+                                onFocus={() => setMustIsFocused(prev => ({ ...prev, [guest.name]: true }))}
+                                onBlur={() => setMustIsFocused(prev => ({ ...prev, [guest.name]: false }))}
+                                onKeyDown={(e) => handleMustKeyDown(e, guest.name)}
+                                placeholder="Enter guest names separated by commas"
+                                className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-green-500 text-green-600"
+                                role="combobox" 
+                                aria-expanded={(mustSuggestions[guest.name] || []).length > 0} 
+                                aria-controls={`must-suggest-${guest.name}`} 
+                                aria-autocomplete="list"
+                              />
+                              
+                              {/* Must Suggestions Dropdown */}
+                              {(mustSuggestions[guest.name] || []).length > 0 && mustIsFocused[guest.name] && (
+                                <ul 
+                                  id={`must-suggest-${guest.name}`}
+                                  role="listbox" 
+                                  className="absolute z-10 mt-1 w-full bg-white border rounded shadow max-h-40 overflow-auto"
+                                >
+                                  {(mustSuggestions[guest.name] || []).map((suggestion, i) => (
+                                    <li 
+                                      key={suggestion} 
+                                      role="option" 
+                                      aria-selected={i === (mustActiveIndex[guest.name] || -1)} 
+                                      onClick={() => { 
+                                        addMustChip(guest.name, suggestion); 
+                                        setMustQuery(prev => ({ ...prev, [guest.name]: '' })); 
+                                      }} 
+                                      className={`px-2 py-1 cursor-pointer ${i === (mustActiveIndex[guest.name] || -1) ? 'bg-gray-100' : ''}`}
+                                    >
+                                      {suggestion}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            
+                            {/* Must Chips Display */}
+                            {(() => {
+                              const chips = (mustQuery[guest.name] || '').split(',').map(s => s.trim()).filter(Boolean);
+                              if (chips.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mb-1 mt-2">
+                                  {chips.map(chip => (
+                                    <Chip 
+                                      key={chip} 
+                                      label={chip} 
+                                      tone="must" 
+                                      onRemove={() => removeMustChip(guest.name, chip)} 
+                                    />
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                            
                             <div className="mt-1 text-xs text-green-600">
                               These guests will be seated at the same table
                             </div>
@@ -637,14 +879,66 @@ const TableManager: React.FC = () => {
                             >
                               Cannot Sit With
                             </label>
-                            <input
-                              id={`cannot-${guest.name}`}
-                              type="text"
-                              value={cannotConstraints.join(', ')}
-                              onChange={(e) => handleUpdateCannotConstraints(guest.name, e.target.value)}
-                              placeholder="Enter guest names separated by commas"
-                              className="w-full px-3 py-2 border border-red-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 text-red-600"
-                            />
+                            <div className="relative">
+                              <input
+                                id={`cannot-${guest.name}`}
+                                type="text"
+                                value={cannotQuery[guest.name] || ''}
+                                onChange={(e) => setCannotQuery(prev => ({ ...prev, [guest.name]: e.target.value }))}
+                                onFocus={() => setCannotIsFocused(prev => ({ ...prev, [guest.name]: true }))}
+                                onBlur={() => setCannotIsFocused(prev => ({ ...prev, [guest.name]: false }))}
+                                onKeyDown={(e) => handleCannotKeyDown(e, guest.name)}
+                                placeholder="Enter guest names separated by commas"
+                                className="w-full px-3 py-2 border border-red-300 rounded-md focus:outline-none focus:ring-red-500 text-red-600"
+                                role="combobox" 
+                                aria-expanded={(cannotSuggestions[guest.name] || []).length > 0} 
+                                aria-controls={`cannot-suggest-${guest.name}`} 
+                                aria-autocomplete="list"
+                              />
+                              
+                              {/* Cannot Suggestions Dropdown */}
+                              {(cannotSuggestions[guest.name] || []).length > 0 && cannotIsFocused[guest.name] && (
+                                <ul 
+                                  id={`cannot-suggest-${guest.name}`}
+                                  role="listbox" 
+                                  className="absolute z-10 mt-1 w-full bg-white border rounded shadow max-h-40 overflow-auto"
+                                >
+                                  {(cannotSuggestions[guest.name] || []).map((suggestion, i) => (
+                                    <li 
+                                      key={suggestion} 
+                                      role="option" 
+                                      aria-selected={i === (cannotActiveIndex[guest.name] || -1)} 
+                                      onClick={() => { 
+                                        addCannotChip(guest.name, suggestion); 
+                                        setCannotQuery(prev => ({ ...prev, [guest.name]: '' })); 
+                                      }} 
+                                      className={`px-2 py-1 cursor-pointer ${i === (cannotActiveIndex[guest.name] || -1) ? 'bg-gray-100' : ''}`}
+                                    >
+                                      {suggestion}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            
+                            {/* Cannot Chips Display */}
+                            {(() => {
+                              const chips = (cannotQuery[guest.name] || '').split(',').map(s => s.trim()).filter(Boolean);
+                              if (chips.length === 0) return null;
+                              return (
+                                <div className="flex flex-wrap gap-1 mb-1 mt-2">
+                                  {chips.map(chip => (
+                                    <Chip 
+                                      key={chip} 
+                                      label={chip} 
+                                      tone="cannot" 
+                                      onRemove={() => removeCannotChip(guest.name, chip)} 
+                                    />
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                            
                             <div className="mt-1 text-xs text-red-600">
                               These guests will not be seated at the same table
                             </div>

@@ -208,65 +208,43 @@ const ConstraintManager: React.FC = () => {
     return state.adjacents[guestName]?.length || 0;
   }
   
+  // Helper function for current table sorting
+  const currentTableKey = (name: string, plan: { tables: { id: number; seats: any[] }[] } | null, assigns: Record<string, string> | undefined) => {
+    if (plan?.tables) {
+      for (const t of plan.tables) {
+        const names = (t.seats || []).map((s: any) => typeof s === 'string' ? s : s?.name).filter(Boolean);
+        if (names.includes(name)) return t.id;
+      }
+    }
+    const raw = assigns?.[name];
+    if (raw) {
+      const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n));
+      if (ids.length) return ids[0];
+    }
+    return Number.POSITIVE_INFINITY;
+  };
+
   // Function to get sorted guests
   const getSortedGuests = () => {
-    if (!isPremium || sortOption === 'as-entered') {
+    if (sortOption === 'as-entered') {
       return [...state.guests];
     }
     
     return [...state.guests].sort((a, b) => {
       if (sortOption === 'first-name') {
-        // Sort by the first name (everything before the first space)
-        const firstNameA = a.name.split(' ')[0].toLowerCase();
-        const firstNameB = b.name.split(' ')[0].toLowerCase();
-        return firstNameA.localeCompare(firstNameB);
+        return a.name.split(' ')[0].toLowerCase().localeCompare(b.name.split(' ')[0].toLowerCase());
       } 
       else if (sortOption === 'last-name') {
-        // For guests with ampersands, only use the part before the ampersand for sorting
-        const getLastName = (fullName: string) => {
-          // Extract the first person's name (before any ampersand)
-          const firstPersonName = fullName.split('&')[0].trim();
-          return getLastNameForSorting(firstPersonName).toLowerCase();
-        };
-        
-        const lastNameA = getLastName(a.name);
-        const lastNameB = getLastName(b.name);
-        
-        return lastNameA.localeCompare(lastNameB);
+        return getLastNameForSorting(a.name).toLowerCase().localeCompare(getLastNameForSorting(b.name).toLowerCase());
       }
       else if (sortOption === 'current-table') {
-        // Sort by current table assignment in the currently active plan
         if (state.seatingPlans.length === 0) {
           return 0; // No sorting if no plans
         }
         
-        // Use the currently viewed plan
         const plan = state.seatingPlans[state.currentPlanIndex];
-        let tableA = Number.MAX_SAFE_INTEGER;  // Default to high value for unassigned
-        let tableB = Number.MAX_SAFE_INTEGER;
-        let foundA = false;
-        let foundB = false;
-        
-        // Find which table each guest is assigned to
-        for (const table of plan.tables) {
-          for (const seat of table.seats) {
-            if (seat.name === a.name) {
-              tableA = table.id;
-              foundA = true;
-            }
-            if (seat.name === b.name) {
-              tableB = table.id;
-              foundB = true;
-            }
-            // Exit early if both found
-            if (foundA && foundB) break;
-          }
-          if (foundA && foundB) break;
-        }
-        
-        // Sort unassigned guests last
-        if (!foundA && foundB) return 1;
-        if (foundA && !foundB) return -1;
+        const tableA = currentTableKey(a.name, plan, state.assignments);
+        const tableB = currentTableKey(b.name, plan, state.assignments);
         
         return tableA - tableB;
       }
@@ -424,28 +402,16 @@ const ConstraintManager: React.FC = () => {
               ) : guest1.name}
               {adjacentIndicator}
             </div>
-            {guest1.count > 1 && (
-              <div className="text-xs text-gray-700 font-medium">
-                Party size: {guest1.count} {guest1.count === 2 ? 'people' : 'people'}
-              </div>
-            )}
+            {/* Party size display */}
+            <div className="text-xs text-[#586D78] mt-1">
+              Party size: {guest1.count} {guest1.count === 1 ? 'person' : 'people'}
+            </div>
             {/* Table assignment info - always show for premium users */}
-            {isPremium && (() => {
-              const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.name);
-              if (tableAssignment) {
-                return (
-                  <div className="text-xs text-gray-600">
-                    <div>Party size: {guest1.count} people</div>
-                    <div>{tableAssignment}</div>
-                  </div>
-                );
-              }
-              return (
-                <div className="text-xs font-medium text-gray-400">
-                  Table: unassigned
-                </div>
-              );
-            })()}
+            {state.assignments[guest1.name] && (
+              <span className="text-sm text-gray-700 font-medium block mt-1">
+                {formatTableAssignment(state.assignments, state.tables, guest1.name) || 'Table: unassigned'}
+              </span>
+            )}
           </div>
         </td>
       ];
@@ -810,16 +776,35 @@ const ConstraintManager: React.FC = () => {
   // Check if pagination should be shown (120+ guests)
   const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
 
-  return (
-    <div className="space-y-6">
+      return (
+      <div className="space-y-14">
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <ClipboardList className="mr-2" />
-        Constraint Manager
-
+        Rules Management
       </h1>
       
+      <Card title="Rules Management" className="mb-0">
+        <div className="space-y-14">
+          <div>
+            <p className="text-gray-700 text-[17px]">Enter guest names separated by commas or line breaks.</p>
+            <p className="text-gray-700 text-[17px]">Connect couples and parties with an ampersand (&).</p>
+            
+            {/* Legend */}
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm font-medium text-[#586D78]">Adjacent-Pairing</summary>
+              <div className="text-sm text-gray-700 mt-1">
+                To set "Adjacent Seating" (guests sit right next to each other):<br />
+                Double-click a guest name to select it<br />
+                Click another guest and the adjacency will be set automatically<br />
+                Guests with adjacent constraints are marked with ⭐
+              </div>
+            </details>
+          </div>
+        </div>
+      </Card>
+      
       <Card>
-        <div className="space-y-4">
+        <div className="space-y-14">
           {showConflicts && conflicts.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <h3 className="flex items-center text-red-800 font-medium mb-2">
@@ -874,7 +859,7 @@ const ConstraintManager: React.FC = () => {
             <Info className="text-[#586D78] mt-1 flex-shrink-0" />
             <div>
               <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
-              <ul className="list-disc pl-5 space-y-6 text-gray-600 text-[17px] mt-2">
+              <ul className="list-disc pl-5 space-y-14 text-gray-600 text-[17px] mt-2">
                 <li>Click a cell to cycle between constraints:
                   <div className="mt-1 flex space-x-4">
                     <span className="flex items-center">

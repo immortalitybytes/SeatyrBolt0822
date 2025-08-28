@@ -7,6 +7,52 @@ interface AtomicGroup {
   priority: number;
 }
 
+// ---------- CAPACITY ENFORCEMENT FUNCTIONS (Batch 1) ----------
+type TablePlan = { id: number; name?: string; capacity: number; seats: string[] };
+
+const DEFAULT_TABLE_CAPACITY = 8; // keep or unify if defined elsewhere
+
+function makeRemainingCapacity(tables: TablePlan[]): Map<number, number> {
+  const m = new Map<number, number>();
+  for (const t of tables) m.set(t.id, t.capacity);
+  return m;
+}
+
+function pickTableFirstFit(
+  candidateTableIds: number[],
+  remaining: Map<number, number>,
+  needed: number
+): number | null {
+  for (const id of candidateTableIds) {
+    const left = remaining.get(id) ?? 0;
+    if (left >= needed) return id;
+  }
+  return null;
+}
+
+function appendSeats(planTables: Map<number, TablePlan>, tableId: number, guestName: string) {
+  const t = planTables.get(tableId);
+  if (!t) return;
+  t.seats.push(guestName);
+}
+
+function normalizeEmittedTables(planTables: Map<number, TablePlan>): TablePlan[] {
+  const out = Array.from(planTables.values());
+  out.sort((a, b) => a.id - b.id);
+  return out;
+}
+
+function resolveTableTokenToId(
+  token: string,
+  tables: { id: number; name?: string }[]
+): number | null {
+  const tok = token.trim();
+  const n = Number(tok);
+  if (!Number.isNaN(n)) return tables.find(t => t.id === n) ? n : null;
+  const found = tables.find(t => (t.name || '').toLowerCase() === tok.toLowerCase());
+  return found ? found.id : null;
+}
+
 // Simple Union-Find implementation
 class OptimizedUnionFind {
   private parent: Map<string, string> = new Map();
@@ -380,103 +426,76 @@ function buildAtomicGroups(
   });
 }
 
-// Generate a single seating plan using the new superior logic
 export function generateSinglePlan(
   guests: Guest[],
   tables: Table[],
   constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>,
-  adjacents: Record<string, string[]>
+  adjacents: Record<string, string[]>,
+  assignments: Record<string, string>
 ): SeatingPlan | null {
   if (guests.length === 0 || tables.length === 0) return null;
-
-  // Build atomic groups (including implicit adjacency groups)
-  const atomicGroups = buildAtomicGroups(guests, constraints, adjacents);
   
-  // Sort groups by priority and size
-  atomicGroups.sort((a, b) => {
-    if (a.priority !== b.priority) return b.priority - a.priority;
-    return b.totalCount - a.totalCount;
-  });
+  const initialTables = tables.map(t => ({ id: t.id, name: t.name, capacity: t.seats }));
+  const planTables = new Map<number, TablePlan>();
+  for (const t of initialTables) planTables.set(t.id, { ...t, seats: [] });
 
-  // Sort tables by capacity (largest first for better fit)
-  const sortedTables = [...tables].sort((a, b) => b.seats - a.seats);
+  const remaining = makeRemainingCapacity(Array.from(planTables.values()));
 
-  const plan: SeatingPlan = {
-    id: Date.now(),
-    tables: []
-  };
-
-  const remainingGuests = new Set(guests.map(g => g.name));
-  const tableAssignments = new Map<string, number>();
-
-  // Assign atomic groups to tables
-  for (const group of atomicGroups) {
-    if (group.units.length === 0) continue;
-
-    // Find best table for this group
-    let bestTable: Table | null = null;
-    let bestTableIndex = -1;
-
-    for (let i = 0; i < sortedTables.length; i++) {
-      const table = sortedTables[i];
-      if (table.seats >= group.totalCount) {
-        bestTable = table;
-        bestTableIndex = i;
-        break;
-      }
+  // 1) Pre-seat explicit assignments (id or name), capacity-checked
+  const assignedGuests = new Set<string>();
+  const assignmentMap = assignments || {};
+  for (const [guestLabel, raw] of Object.entries(assignmentMap)) {
+    if (!raw) continue;
+    const party = guests.find(g => g.name === guestLabel);
+    const partyCount = Math.max(1, party?.count ?? 1);
+    const toks = String(raw).split(',').map(s => s.trim()).filter(Boolean);
+    const candidateIds: number[] = [];
+    for (const tok of toks) {
+      const id = resolveTableTokenToId(tok, initialTables);
+      if (id != null && !candidateIds.includes(id)) candidateIds.push(id);
     }
-
-    if (!bestTable) {
-      console.warn(`Cannot fit group ${group.units.map(u => u.name).join(', ')} (${group.totalCount} seats) in any table`);
-      continue;
-    }
-
-    // Create table assignment
-    const tableAssignment = {
-      id: bestTable.id,
-      seats: group.units,
-      capacity: bestTable.seats
-    };
-
-    // Order seats using endpoint-based adjacency ordering
-    tableAssignment.seats = orderByAdjacencyEndpoints(group.units, adjacents);
-
-    plan.tables.push(tableAssignment);
-
-    // Mark guests as assigned
-    for (const guest of group.units) {
-      remainingGuests.delete(guest.name);
-      tableAssignments.set(guest.name, bestTable.id);
-    }
-  }
-
-  // Assign remaining ungrouped guests to available seats
-  const remainingGuestsList = Array.from(remainingGuests).map(name => guests.find(g => g.name === name)!);
-  
-  for (const guest of remainingGuestsList) {
-    // Find table with available seats
-    for (const table of sortedTables) {
-      const assignedGuests = plan.tables.find(t => t.id === table.id)?.seats || [];
-      if (assignedGuests.length + guest.count <= table.seats) {
-        // Add guest to existing table
-        const existingTable = plan.tables.find(t => t.id === table.id);
-        if (existingTable) {
-          existingTable.seats.push(guest);
-        } else {
-          // Create new table assignment
-          plan.tables.push({
-            id: table.id,
-            seats: [guest],
-            capacity: table.seats
-          });
+    const chosenId = pickTableFirstFit(candidateIds, remaining, partyCount);
+    if (chosenId != null) {
+      // Add the guest to the table
+      const table = planTables.get(chosenId);
+      if (table) {
+        for (let i = 0; i < partyCount; i++) {
+          table.seats.push(guestLabel);
         }
-        tableAssignments.set(guest.name, table.id);
-        break;
       }
+      remaining.set(chosenId, (remaining.get(chosenId) ?? 0) - partyCount);
+      assignedGuests.add(guestLabel);
     }
   }
 
-  return plan;
+  // 2) Place remaining guests, capacity-checked
+  const unassigned = guests.filter(g => !assignedGuests.has(g.name));
+  const allTableIds = Array.from(planTables.keys()); // keep your heuristic if you have one
+  for (const g of unassigned) {
+    const count = Math.max(1, g.count ?? 1);
+    const chosenId = pickTableFirstFit(allTableIds, remaining, count);
+    if (chosenId != null) {
+      // Add the guest to the table
+      const table = planTables.get(chosenId);
+      if (table) {
+        for (let i = 0; i < count; i++) {
+          table.seats.push(g.name);
+        }
+      }
+      remaining.set(chosenId, (remaining.get(chosenId) ?? 0) - count);
+    } else {
+      // optional: collect unplaced
+    }
+  }
+
+  // Convert internal TablePlan to expected TableAssignment format
+  const convertedTables = normalizeEmittedTables(planTables).map(t => ({
+    id: t.id,
+    capacity: t.capacity,
+    seats: t.seats.map(name => ({ name, count: 1 }))
+  }));
+  
+  return { id: Date.now(), tables: convertedTables };
 }
 
 // Generate multiple seating plans using different strategies
@@ -489,7 +508,7 @@ export async function generateSeatingPlans(
   isPremium: boolean = false
 ): Promise<{ plans: SeatingPlan[], errors: any[] }> {
   // For now, generate a single plan using the new logic
-  const plan = generateSinglePlan(guests, tables, constraints, adjacents);
+  const plan = generateSinglePlan(guests, tables, constraints, adjacents, assignments);
   
   if (!plan) {
     return { 
