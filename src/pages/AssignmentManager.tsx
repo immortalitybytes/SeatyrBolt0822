@@ -18,6 +18,24 @@ const AssignmentManager: React.FC = () => {
   // Check if user has premium subscription
   const isPremium = isPremiumSubscription(state.subscription);
 
+  // Assignment normalization function (Batch 3)
+  function normalizeAssignmentToIds(
+    raw: string,
+    tables: { id: number; name?: string }[]
+  ): string {
+    if (!raw) return '';
+    const out: number[] = [];
+    const byName = new Map<string, number>();
+    for (const t of tables) if (t.name) byName.set(t.name.toLowerCase(), t.id);
+    for (const tok of String(raw).split(',').map(s => s.trim()).filter(Boolean)) {
+      const n = Number(tok);
+      if (!Number.isNaN(n)) { if (!out.includes(n)) out.push(n); continue; }
+      const id = byName.get(tok.toLowerCase());
+      if (typeof id === 'number' && !out.includes(id)) out.push(id);
+    }
+    return out.join(',');
+  }
+
   // Function to purge seating plans when assignments change
   const purgeSeatingPlans = () => {
     // Reset seating plans
@@ -34,27 +52,12 @@ const AssignmentManager: React.FC = () => {
   const handleUpdateAssignment = (name: string, value: string) => {
     setErrorMessage(null);
     try {
-      // For premium users, we need to handle both table names and numbers
+      // For premium users, normalize assignments to CSV of IDs
       if (isPremium) {
-        // Process the input to convert any table names to table numbers
-        const processedValue = value.split(',').map(t => {
-          const trimmed = t.trim();
-          if (!trimmed) return '';
-          
-          // If it's a number, keep it as is
-          if (!isNaN(Number(trimmed))) return trimmed;
-          
-          // If it's a name, try to find the matching table
-          const matchingTable = state.tables.find(
-            t => (t.name && t.name.toLowerCase() === trimmed.toLowerCase())
-          );
-          
-          return matchingTable ? matchingTable.id.toString() : trimmed;
-        }).filter(Boolean).join(', ');
-        
+        const processedValue = normalizeAssignmentToIds(value, state.tables || []);
         dispatch({
           type: 'UPDATE_ASSIGNMENT',
-          payload: { name, tables: value }
+          payload: { name, tables: processedValue }
         });
       } else {
         // For non-premium users, keep the original behavior

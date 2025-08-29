@@ -35,10 +35,72 @@ const defaultTables: Table[] = Array.from({ length: 10 }, (_, i) => ({
   seats: 8,
 }));
 
+// ---------- AUTO-TABLE RECONCILIATION HELPERS (Batch 2) ----------
+const DEFAULT_TABLE_CAPACITY = 8;
+
+function isAssignedToTable(
+  t: { id: number; name?: string },
+  assignments: Record<string, string> | undefined
+): boolean {
+  if (!assignments) return false;
+  const tName = (t.name || '').trim().toLowerCase();
+  for (const raw of Object.values(assignments)) {
+    if (!raw) continue;
+    const toks = String(raw).split(',').map(s => s.trim()).filter(Boolean);
+    for (const tok of toks) {
+      const n = Number(tok);
+      if (!Number.isNaN(n) && n === t.id) return true;
+      if (tName && tok.toLowerCase() === tName) return true;
+    }
+  }
+  return false;
+}
+
+function isTableLocked(
+  t: { id: number; name?: string; seats: number },
+  assignments: Record<string, string> | undefined
+): boolean {
+  const named = !!t.name && t.name.trim().length > 0;
+  const capacityChanged = t.seats !== DEFAULT_TABLE_CAPACITY;
+  const hasAssign = isAssignedToTable(t, assignments);
+  return named || capacityChanged || hasAssign;
+}
+
+function totalSeatsNeeded(guests: { count?: number }[]): number {
+  return guests.reduce((s, g) => s + Math.max(1, g.count ?? 1), 0);
+}
+
+function reconcileTables(
+  tables: { id: number; name?: string; seats: number }[],
+  guests: { count?: number }[],
+  assignments: Record<string, string> | undefined
+) {
+  const needed = totalSeatsNeeded(guests);
+  let lockedCap = 0;
+  for (const t of tables) if (isTableLocked(t, assignments)) lockedCap += Math.max(0, t.seats);
+  const remaining = Math.max(0, needed - lockedCap);
+  const requiredUntouched = Math.ceil(remaining / DEFAULT_TABLE_CAPACITY);
+
+  const untouched = tables.filter(t => !isTableLocked(t, assignments) && t.seats === DEFAULT_TABLE_CAPACITY);
+  const delta = requiredUntouched - untouched.length;
+  if (delta === 0) return tables;
+
+  if (delta > 0) {
+    const ids = tables.map(t => t.id);
+    let next = ids.length ? Math.max(...ids) + 1 : 1;
+    const out = tables.slice();
+    for (let i = 0; i < delta; i++) out.push({ id: next++, name: '', seats: DEFAULT_TABLE_CAPACITY });
+    return out;
+  } else {
+    const toRemove = untouched.slice().sort((a,b) => b.id - a.id).slice(0, -delta).map(t => t.id);
+    return tables.filter(t => !toRemove.includes(t.id));
+  }
+}
+
 type AppAction =
   | { type: 'ADD_GUESTS'; payload: Guest[] }
   | { type: 'REMOVE_GUEST'; payload: number }
-  | { type: 'RENAME_GUEST'; payload: { index: number; name: string } }
+  | { type: 'RENAME_GUEST'; payload: { oldName: string; newName: string } }
   | { type: 'UPDATE_GUEST_COUNT'; payload: { index: number; count: number } }
   | { type: 'CLEAR_GUESTS' }
   | { type: 'SET_GUESTS'; payload: Guest[] }
@@ -62,7 +124,8 @@ type AppAction =
   | { type: 'LOAD_MOST_RECENT'; payload: AppState }
   | { type: 'SET_SUPABASE_CONNECTED'; payload: boolean }
   | { type: 'SET_DUPLICATE_GUESTS'; payload: string[] }
-  | { type: 'HIDE_TABLE_REDUCTION_NOTICE' };
+  | { type: 'HIDE_TABLE_REDUCTION_NOTICE' }
+  | { type: 'AUTO_RECONCILE_TABLES' };
 
 const initialState: AppState = {
   guests: [],
@@ -197,52 +260,43 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       break;
     }
     case 'RENAME_GUEST': {
-      const newGuests = [...state.guests];
-      const { index, name, count } = action.payload;
+      const { oldName, newName } = action.payload;
+      if (!oldName || !newName || oldName === newName) return state;
 
-      if (index < 0 || index >= newGuests.length) {
-        console.warn(`RENAME_GUEST: invalid index ${index}`);
-        return state;
+      // 1) guests array
+      const guests = (state.guests || []).map(g => g.name === oldName ? { ...g, name: newName } : g);
+
+      // 2) constraints: row rename and column rename
+      const constraints = { ...(state.constraints || {}) };
+      if (constraints[oldName]) {
+        constraints[newName] = { ...(constraints[oldName]) };
+        delete constraints[oldName];
       }
-
-      const oldName = newGuests[index].name;
-      newGuests[index] = { ...newGuests[index], name, count: count || newGuests[index].count };
-
-      const newConstraints = { ...state.constraints };
-      if (newConstraints[oldName]) {
-        newConstraints[name] = { ...newConstraints[oldName] };
-        delete newConstraints[oldName];
-      }
-      Object.keys(newConstraints).forEach(guest => {
-        if (newConstraints[guest]?.[oldName]) {
-          newConstraints[guest][name] = newConstraints[guest][oldName];
-          delete newConstraints[guest][oldName];
+      for (const r of Object.keys(constraints)) {
+        if (constraints[r] && Object.prototype.hasOwnProperty.call(constraints[r], oldName)) {
+          constraints[r][newName] = constraints[r][oldName];
+          delete constraints[r][oldName];
         }
-      });
-
-      const newAdjacents = { ...state.adjacents };
-      if (newAdjacents[oldName]) {
-        newAdjacents[name] = [...newAdjacents[oldName]];
-        delete newAdjacents[oldName];
-      }
-      Object.keys(newAdjacents).forEach(guest => {
-        newAdjacents[guest] = newAdjacents[guest]?.map(n => (n === oldName ? name : n));
-      });
-
-      const newAssignments = { ...state.assignments };
-      if (newAssignments[oldName]) {
-        newAssignments[name] = newAssignments[oldName];
-        delete newAssignments[oldName];
       }
 
-      newState = {
-        ...state,
-        guests: newGuests,
-        constraints: newConstraints,
-        adjacents: newAdjacents,
-        assignments: newAssignments,
-      };
-      break;
+      // 3) adjacents: key rename and list element rename
+      const adjacents = { ...(state.adjacents || {}) };
+      if (adjacents[oldName]) {
+        adjacents[newName] = Array.from(new Set(adjacents[oldName].map(n => n === oldName ? newName : n)));
+        delete adjacents[oldName];
+      }
+      for (const k of Object.keys(adjacents)) {
+        adjacents[k] = Array.from(new Set((adjacents[k] || []).map(n => n === oldName ? newName : n)));
+      }
+
+      // 4) assignments: move entry to new key
+      const assignments = { ...(state.assignments || {}) };
+      if (Object.prototype.hasOwnProperty.call(assignments, oldName)) {
+        assignments[newName] = assignments[oldName];
+        delete assignments[oldName];
+      }
+
+      return { ...state, guests, constraints, adjacents, assignments };
     }
     case 'UPDATE_GUEST_COUNT': {
       const { index, count } = action.payload;
@@ -317,32 +371,26 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
 
     case 'SET_ADJACENT': {
-      const { guest1, guest2 } = action.payload as { guest1: string; guest2: string };
+      const { guest1, guest2 } = action.payload;
+      const constraints = { ...state.constraints };
+      const adjacents = { ...state.adjacents };
 
-      // Defensive: ignore self-adjacency attempts
-      if (!guest1 || !guest2 || guest1 === guest2) return state;
+      constraints[guest1] = { ...(constraints[guest1] || {}) };
+      constraints[guest2] = { ...(constraints[guest2] || {}) };
 
-      const aList = state.adjacents[guest1] ?? [];
-      const bList = state.adjacents[guest2] ?? [];
+      if (constraints[guest1][guest2] === 'cannot') delete constraints[guest1][guest2];
+      if (constraints[guest2][guest1] === 'cannot') delete constraints[guest2][guest1];
 
-      // Idempotent: already linked
-      if (aList.includes(guest2)) return state;
-
-      // Degree cap (≤ 2) enforced at input time
-      if (aList.length >= 2 || bList.length >= 2) {
-        // TODO: swap console for your toast/notification
-        console.error('A guest can have at most two adjacent pairings.');
-        return state;
-      }
-
-      return {
-        ...state,
-        adjacents: {
-          ...state.adjacents,
-          [guest1]: [...aList, guest2],
-          [guest2]: [...bList, guest1],
-        },
+      const addAdj = (a: string, b: string) => {
+        const cur = new Set(adjacents[a] || []);
+        cur.add(b);
+        if (cur.size > 2) return false; // degree cap
+        adjacents[a] = Array.from(cur);
+        return true;
       };
+
+      if (!addAdj(guest1, guest2) || !addAdj(guest2, guest1)) return state;
+      return { ...state, constraints, adjacents };
     }
     case 'REMOVE_ADJACENT': {
       const { guest1, guest2 } = action.payload;
@@ -573,6 +621,12 @@ const reducer = (state: AppState, action: AppAction): AppState => {
         duplicateGuests: []
       };
       break;
+    }
+
+    case 'AUTO_RECONCILE_TABLES': {
+      const nextTables = reconcileTables(state.tables || [], state.guests || [], state.assignments || {});
+      if (nextTables === state.tables) return state;
+      return { ...state, tables: nextTables };
     }
 
     default:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MapPin, Download, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, Save, Crown } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
@@ -31,6 +31,35 @@ const SeatingPlanViewer: React.FC = () => {
   const { user, subscription } = state;
   // Check premium status
   const isPremium = isPremiumSubscription(subscription);
+  
+  // Always available, top-level:
+  const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
+
+  // Top-level table normalization (same logic you already had, just hoisted)
+  const tablesNormalized = useMemo(() => {
+    if (!plan) return [];
+    const byId = new Map<number, { id: number; name?: string; capacity: number; seats: any[] }>();
+    for (const t of plan.tables) {
+      const ex = byId.get(t.id);
+      if (ex) {
+        ex.seats = Array.isArray(ex.seats) ? [...ex.seats, ...(t.seats ?? [])] : [...(t.seats ?? [])];
+        ex.capacity = Math.max(ex.capacity, t.capacity ?? 0);
+        // Get table name from state.tables
+        const tableName = state.tables.find(tbl => tbl.id === t.id)?.name;
+        if (!ex.name && tableName) ex.name = tableName;
+      } else {
+        // Get table name from state.tables
+        const tableName = state.tables.find(tbl => tbl.id === t.id)?.name;
+        byId.set(t.id, {
+          id: t.id,
+          name: tableName,
+          capacity: t.capacity ?? 0,
+          seats: [...(t.seats ?? [])],
+        });
+      }
+    }
+    return Array.from(byId.values()).sort((a, b) => a.id - b.id);
+  }, [plan, state.tables]);
   
   // Update current setting name when loaded saved setting status changes
   useEffect(() => {
@@ -343,8 +372,15 @@ const SeatingPlanViewer: React.FC = () => {
       );
     }
 
-    const plan = state.seatingPlans[state.currentPlanIndex];
-    const maxSeats = Math.max(...plan.tables.map(t => t.capacity));
+    if (!plan) {
+      return (
+        <div className="text-center py-8 text-gray-500">
+          No seating plan available.
+        </div>
+      );
+    }
+
+    const maxSeats = Math.max(...tablesNormalized.map(t => t.capacity));
     
     // Function to get table display name
     const getTableDisplayName = (tableId: number) => {
@@ -402,31 +438,22 @@ const SeatingPlanViewer: React.FC = () => {
           <table className="min-w-full border-collapse">
             <thead>
               <tr>
-                {plan.tables.map(table => {
+                {tablesNormalized.map(table => {
                   // Calculate total people (not just units) by summing guest counts
-                  const totalPeople = table.seats.reduce((sum, guest) => sum + guest.count, 0);
-                  
-                  // Get the table display name
-                  const tableObj = state.tables.find(t => t.id === table.id);
-                  const tableDisplay = tableObj?.name 
-                    ? (
-                      <>
-                        <span>{tableObj.name}</span>
-                        <span className="text-xs block text-gray-600">
-                          (Table {table.id})
-                        </span>
-                      </>
-                    ) 
-                    : <span>Table {table.id}</span>;
+                  const seats = Array.isArray(table.seats) ? table.seats : [];
+                  const totalPeople = seats.reduce((sum, guest) => {
+                    if (typeof guest === 'string') return sum + 1;
+                    return sum + (guest?.count || 1);
+                  }, 0);
                   
                   return (
                     <th
                       key={`table-${table.id}`}
                       className="bg-indigo-100 text-[#586D78] font-medium p-2 border border-indigo-200"
                     >
-                      {tableDisplay}
+                      {table.name ? `Table #${table.id} (${table.name})` : `Table #${table.id}`}
                       <span className="text-xs block text-gray-600">
-                        ({totalPeople}/{table.capacity} seats)
+                        {totalPeople}/{table.capacity} seats
                       </span>
                     </th>
                   );
@@ -436,14 +463,44 @@ const SeatingPlanViewer: React.FC = () => {
             <tbody>
               {Array.from({ length: maxSeats }).map((_, rowIndex) => (
                 <tr key={`row-${rowIndex}`}>
-                  {plan.tables.map(table => {
-                    const guest = table.seats[rowIndex];
+                  {tablesNormalized.map(table => {
+                    // Add safety check for table.seats
+                    if (!table.seats || !Array.isArray(table.seats)) {
+                      console.error('Invalid table.seats structure:', table.seats);
+                      return (
+                        <td key={`cell-${table.id}-${rowIndex}`} className="p-2 border border-red-200 bg-red-50">
+                          <div className="text-xs text-red-600">Error: Invalid seats data</div>
+                        </td>
+                      );
+                    }
+                    
+                    // Coerce to array & guard
+                    const seats = Array.isArray(table.seats) ? table.seats : [];
+                    const guest = seats[rowIndex];
+                    
+                    // Safe guest name extraction
+                    const guestName = typeof guest === 'string' ? guest : guest?.name;
+                    if (!guestName) {
+                      if (rowIndex >= table.capacity) {
+                        return (
+                          <td key={`cell-${table.id}-${rowIndex}`} className="p-2 border border-gray-200 bg-gray-50">
+                            <div className="text-xs text-gray-400 text-center">Empty</div>
+                          </td>
+                        );
+                      }
+                      return (
+                        <td key={`cell-${table.id}-${rowIndex}`} className="p-2 border border-red-200 bg-red-50">
+                          <div className="text-xs text-red-600">Invalid seat</div>
+                        </td>
+                      );
+                    }
+                    
                     // Find all guests adjacent to this guest (bidirectional check)
-                    const adjacentGuests = guest ? findAllAdjacentGuests(guest.name) : [];
+                    const adjacentGuests = findAllAdjacentGuests(guestName);
                     const adjacentCount = adjacentGuests.length;
-                    const tableGuests = table.seats.map(g => g.name);
+                    const tableGuests = seats.map(g => typeof g === 'string' ? g : g?.name).filter(Boolean);
                     const adjacentGuestsAtTable = adjacentGuests.filter(adj => tableGuests.includes(adj));
-                    const isEmptySeat = rowIndex >= table.seats.length && rowIndex < table.capacity;
+                    const isEmptySeat = rowIndex >= seats.length && rowIndex < table.capacity;
 
                     return (
                       <td
@@ -451,41 +508,34 @@ const SeatingPlanViewer: React.FC = () => {
                         className={`p-2 border ${
                           guest ? 'border-indigo-200' : 'border-gray-200'
                         } ${
-                          state.assignments[guest?.name] ? 'bg-[#88abc6]' : 
+                          state.assignments[guestName] ? 'bg-[#88abc6]' : 
                           isEmptySeat ? 'bg-gray-50' : 'bg-white'
                         }`}
                       >
-                        {guest && (
-                          <>
-                            <div className="font-medium text-[#586D78]">
-                              {guest.name.includes('%') ? (
-                                <>
-                                  {guest.name.split('%')[0]}
-                                  <span style={{ color: '#959595' }}>%</span>
-                                  {guest.name.split('%')[1]}
-                                </>
-                              ) : guest.name}
-                              {guest.count > 1 && (
-                                <span className="text-xs text-gray-500 ml-1">
-                                  ({guest.count})
-                                </span>
-                              )}
-                              {adjacentCount > 0 && (
-                                <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacentGuests.join(', ')}`}>
-                                  {adjacentCount === 1 ? '⭐' : '⭐⭐'}
-                                </span>
-                              )}
-                            </div>
+                        <div className="font-medium text-[#586D78]">
+                          {guestName.includes('%') ? (
+                            <>
+                              {guestName.split('%')[0]}
+                              <span style={{ color: '#959595' }}>%</span>
+                              {guestName.split('%')[1]}
+                            </>
+                          ) : guestName}
+                          {typeof guest === 'object' && guest.count > 1 && (
+                            <span className="text-xs text-gray-500 ml-1">
+                              ({guest.count})
+                            </span>
+                          )}
+                          {adjacentCount > 0 && (
+                            <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacentGuests.join(', ')}`}>
+                              {adjacentCount === 1 ? '⭐' : '⭐⭐'}
+                            </span>
+                          )}
+                        </div>
 
-                            {adjacentGuestsAtTable.length > 0 && (
-                              <div className="text-xs text-white mt-1">
-                                Adjacent to: {adjacentGuestsAtTable.join(', ')}
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {isEmptySeat && (
-                          <div className="text-xs text-gray-400 text-center">Empty</div>
+                        {adjacentGuestsAtTable.length > 0 && (
+                          <div className="text-xs text-white mt-1">
+                            Adjacent to: {adjacentGuestsAtTable.join(', ')}
+                          </div>
                         )}
                       </td>
                     );
@@ -499,8 +549,8 @@ const SeatingPlanViewer: React.FC = () => {
     );
   };
 
-  return (
-    <div className="space-y-6">
+      return (
+      <div className="space-y-14">
       <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
         <MapPin className="mr-2" />
         Seating Plan Viewer
@@ -508,7 +558,7 @@ const SeatingPlanViewer: React.FC = () => {
       </h1>
 
       <Card>
-        <div className="space-y-4">
+                  <div className="space-y-14">
           <p className="text-gray-700">
             Generate and review seating plans based on your guests, tables, and constraints.
             {isPremium && state.user && (
@@ -627,7 +677,7 @@ const SeatingPlanViewer: React.FC = () => {
                   </div>
                 )}
 
-                <div className="space-y-4">
+                                 <div className="space-y-14">
                   <button
                     className="danstyle1c-btn bg-[#586D78] text-white w-full"
                     onClick={handleCopyToClipboard}

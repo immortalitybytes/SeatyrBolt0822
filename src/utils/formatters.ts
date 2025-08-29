@@ -2,34 +2,20 @@
 export type Table = { id: number; seats: number; name?: string };
 
 export function formatTableAssignment(
-  assignments: Record<string,string>,
-  tables: Table[],
+  assignments: Record<string, string> | undefined,
+  tables: { id: number; name?: string }[],
   guestName: string
 ): string {
-  const raw = assignments[guestName];
-  if (!raw) return "";
-  const first = String(raw).split(",")[0].trim();
-  if (!first) return "";
-
-  // If the assignment looks like a number, resolve by id
-  const asNum = Number(first);
-  if (!Number.isNaN(asNum)) {
-    const t = tables.find(t => t.id === asNum);
-    if (t) {
-      const label = (t.name && /^\d+$/.test(String(t.name))) ? `#${t.name}`
-                  : (t.name ? t.name : `#${t.id}`);
-      return `Table ${label}`;
-    }
-    return `Table #${asNum}`;
-  }
-
-  // Otherwise try to match by table name (case-insensitive)
-  const byName = tables.find(t => String(t.name ?? '').toLowerCase() === first.toLowerCase());
-  if (byName) {
-    const label = (/^\d+$/.test(String(byName.name))) ? `#${byName.name}` : String(byName.name);
-    return `Table ${label}`;
-  }
-  return `Table ${first}`;
+  const raw = assignments?.[guestName];
+  if (!raw) return '';
+  const tokens = raw.split(',').map(s => s.trim()).filter(Boolean);
+  const labels = tokens.map(tok => {
+    const id = Number(tok);
+    const t = tables.find(x => x.id === id);
+    if (!t) return `Table #${tok}`;
+    return t.name ? `Table #${t.id} (${t.name})` : `Table #${t.id}`;
+  });
+  return labels.join(' • ');
 }
 
 /**
