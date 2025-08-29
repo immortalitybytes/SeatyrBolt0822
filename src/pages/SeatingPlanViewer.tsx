@@ -143,10 +143,14 @@ const SeatingPlanViewer: React.FC = () => {
                     return <td key={`cell-empty-${table.id}-${rowIndex}`} className="p-2 border border-gray-200 bg-gray-50"><div className="text-xs text-gray-400 text-center">Empty</div></td>;
                   }
 
+                  // Safe type validation (Grok feature)
+                  const safeName = (typeof guestData.name === 'string' && guestData.name.trim()) ? guestData.name.trim() : '';
+                  const safePartyIndex = Number.isFinite((guestData as any).partyIndex) ? (guestData as any).partyIndex : -1;
+
                   return (
                     <td key={`cell-guest-${table.id}-${rowIndex}`} className="p-2 border border-indigo-200 align-top">
                       <div className="font-medium text-[#586D78] text-sm">
-                        {formatGuestNameForSeat(guestData.name, (guestData as any).partyIndex || 0)}
+                        {formatGuestNameForSeat(safeName, safePartyIndex)}
                       </div>
                     </td>
                   );
