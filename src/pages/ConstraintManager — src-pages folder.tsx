@@ -59,6 +59,36 @@ const ConstraintManager: React.FC = () => {
   // Check if user has premium subscription
   const isPremium = isPremiumSubscription(state.subscription);
   
+  // Helper functions for sorting and table assignment
+  type Plan = { tables: { id:number; seats:any[] }[] } | null | undefined;
+  
+  function currentTableKey(name: string, plan: Plan, assigns?: Record<string,string>) {
+    if (plan?.tables) {
+      for (const t of plan.tables) {
+        const names = (t.seats ?? []).map((s:any)=> typeof s==='string'? s : s?.name).filter(Boolean);
+        if (names.includes(name)) return t.id;
+      }
+    }
+    const raw = assigns?.[name];
+    if (raw) {
+      const first = raw.split(',').map(s=>parseInt(s.trim(),10)).find(n=>!Number.isNaN(n));
+      if (typeof first === 'number') return first;
+    }
+    return Number.POSITIVE_INFINITY;
+  }
+  
+  function formatAssignment(assigns: Record<string,string>|undefined,
+                          tables: {id:number;name?:string}[], 
+                          guestName: string) {
+    const raw = assigns?.[guestName];
+    if (!raw) return 'Table: unassigned';
+    return raw.split(',').map(s=>s.trim()).filter(Boolean).map(tok=>{
+      const id = parseInt(tok,10);
+      const t = tables.find(x=>x.id===id);
+      return t ? (t.name ? `Table #${t.id} (${t.name})` : `Table #${t.id}`) : `Table #${tok}`;
+    }).join(' • ');
+  }
+  
   // Detect touch device
   useEffect(() => {
     const checkTouchDevice = () => setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
@@ -208,69 +238,31 @@ const ConstraintManager: React.FC = () => {
     return state.adjacents[guestName]?.length || 0;
   }
   
+
+
   // Function to get sorted guests
   const getSortedGuests = () => {
-    if (!isPremium || sortOption === 'as-entered') {
+    if (sortOption === 'as-entered') {
       return [...state.guests];
     }
     
     return [...state.guests].sort((a, b) => {
-      if (sortOption === 'first-name') {
-        // Sort by the first name (everything before the first space)
-        const firstNameA = a.name.split(' ')[0].toLowerCase();
-        const firstNameB = b.name.split(' ')[0].toLowerCase();
-        return firstNameA.localeCompare(firstNameB);
-      } 
-      else if (sortOption === 'last-name') {
-        // For guests with ampersands, only use the part before the ampersand for sorting
-        const getLastName = (fullName: string) => {
-          // Extract the first person's name (before any ampersand)
-          const firstPersonName = fullName.split('&')[0].trim();
-          return getLastNameForSorting(firstPersonName).toLowerCase();
-        };
-        
-        const lastNameA = getLastName(a.name);
-        const lastNameB = getLastName(b.name);
-        
-        return lastNameA.localeCompare(lastNameB);
-      }
-      else if (sortOption === 'current-table') {
-        // Sort by current table assignment in the currently active plan
-        if (state.seatingPlans.length === 0) {
-          return 0; // No sorting if no plans
+      switch (sortOption) {
+        case 'first-name':
+          return a.name.localeCompare(b.name);
+        case 'last-name': {
+          const la = a.name.trim().split(/\s+/).pop() ?? a.name;
+          const lb = b.name.trim().split(/\s+/).pop() ?? b.name;
+          return la.localeCompare(lb) || a.name.localeCompare(b.name);
         }
-        
-        // Use the currently viewed plan
-        const plan = state.seatingPlans[state.currentPlanIndex];
-        let tableA = Number.MAX_SAFE_INTEGER;  // Default to high value for unassigned
-        let tableB = Number.MAX_SAFE_INTEGER;
-        let foundA = false;
-        let foundB = false;
-        
-        // Find which table each guest is assigned to
-        for (const table of plan.tables) {
-          for (const seat of table.seats) {
-            if (seat.name === a.name) {
-              tableA = table.id;
-              foundA = true;
-            }
-            if (seat.name === b.name) {
-              tableB = table.id;
-              foundB = true;
-            }
-            // Exit early if both found
-            if (foundA && foundB) break;
-          }
-          if (foundA && foundB) break;
+        case 'current-table': {
+          const ka = currentTableKey(a.name, state.seatingPlans?.[state.currentPlanIndex], state.assignments);
+          const kb = currentTableKey(b.name, state.seatingPlans?.[state.currentPlanIndex], state.assignments);
+          return ka - kb || a.name.localeCompare(b.name);
         }
-        
-        // Sort unassigned guests last
-        if (!foundA && foundB) return 1;
-        if (foundA && !foundB) return -1;
-        
-        return tableA - tableB;
+        default:
+          return 0; // as-entered
       }
-      return 0;
     });
   };
   
@@ -424,28 +416,14 @@ const ConstraintManager: React.FC = () => {
               ) : guest1.name}
               {adjacentIndicator}
             </div>
-            {guest1.count > 1 && (
-              <div className="text-xs text-gray-700 font-medium">
-                Party size: {guest1.count} {guest1.count === 2 ? 'people' : 'people'}
-              </div>
-            )}
-            {/* Table assignment info - always show for premium users */}
-            {isPremium && (() => {
-              const tableAssignment = formatTableAssignment(state.assignments, state.tables, guest1.name);
-              if (tableAssignment) {
-                return (
-                  <div className="text-xs text-gray-600">
-                    <div>Party size: {guest1.count} people</div>
-                    <div>{tableAssignment}</div>
-                  </div>
-                );
-              }
-              return (
-                <div className="text-xs font-medium text-gray-400">
-                  Table: unassigned
-                </div>
-              );
-            })()}
+            {/* Party size display */}
+            <div className="text-xs text-[#586D78] mt-1">
+              Party size: {guest1.count} {guest1.count === 1 ? 'person' : 'people'}
+            </div>
+            {/* Table assignment line */}
+            <div className="text-xs text-[#586D78] mt-1">
+              {formatAssignment(state.assignments, state.tables, guest1.name)}
+            </div>
           </div>
         </td>
       ];
@@ -810,16 +788,32 @@ const ConstraintManager: React.FC = () => {
   // Check if pagination should be shown (120+ guests)
   const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
 
-  return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
-        <ClipboardList className="mr-2" />
-        Constraint Manager
-
-      </h1>
+      return (
+      <div className="space-y-14">
+      <h2 className="text-2xl font-semibold text-[#586D78] mb-0">Rules Management</h2>
+      
+      <Card className="mb-0">
+        <div className="space-y-14">
+          <div>
+            <p className="text-gray-700 text-[17px]">Enter guest names separated by commas or line breaks.</p>
+            <p className="text-gray-700 text-[17px]">Connect couples and parties with an ampersand (&).</p>
+            
+            {/* Legend */}
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm font-medium text-[#586D78]">Adjacent-Pairing</summary>
+              <div className="text-sm text-gray-700 mt-1">
+                To set "Adjacent Seating" (guests sit right next to each other):<br />
+                Double-click a guest name to select it<br />
+                Click another guest and the adjacency will be set automatically<br />
+                Guests with adjacent constraints are marked with ⭐
+              </div>
+            </details>
+          </div>
+        </div>
+      </Card>
       
       <Card>
-        <div className="space-y-4">
+        <div className="space-y-14">
           {showConflicts && conflicts.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <h3 className="flex items-center text-red-800 font-medium mb-2">
@@ -874,7 +868,7 @@ const ConstraintManager: React.FC = () => {
             <Info className="text-[#586D78] mt-1 flex-shrink-0" />
             <div>
               <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
-              <ul className="list-disc pl-5 space-y-6 text-gray-600 text-[17px] mt-2">
+              <ul className="list-disc pl-5 space-y-14 text-gray-600 text-[17px] mt-2">
                 <li>Click a cell to cycle between constraints:
                   <div className="mt-1 flex space-x-4">
                     <span className="flex items-center">
@@ -901,6 +895,17 @@ const ConstraintManager: React.FC = () => {
               </ul>
             </div>
           </div>
+          
+          {/* Adjacent-Pairing Accordion */}
+          <details className="mt-2">
+            <summary className="cursor-pointer text-sm font-medium text-[#586D78]">Adjacent-Pairing</summary>
+            <div className="mt-2 text-sm text-[#586D78] space-y-1">
+              <p>To set "Adjacent Seating" (guests sit right next to each other):</p>
+              <p>Double-click a guest name to select it.</p>
+              <p>Click another guest and the adjacency will be set automatically.</p>
+              <p>Guests with adjacent constraints are marked with ⭐ (star emoji).</p>
+            </div>
+          </details>
         </div>
       </Card>
     
