@@ -190,7 +190,11 @@ export function detectConstraintConflicts(
         if (recursionStack.has(otherGuestKey)) {
           const cycleStart = path.indexOf(otherGuestKey);
           const cycle = [...path.slice(cycleStart), otherGuestKey];
-          if (!conflicts.some(c => c.type === 'circular' && c.affectedGuests.join() === cycle.join())) {
+          if (!conflicts.some(c => 
+            c.type === 'error' && 
+            c.message.includes('Circular dependency') && 
+            (c as ValidationError & { affectedGuests?: string[] }).affectedGuests?.join() === cycle.join()
+          )) {
             conflicts.push({
               id: Date.now().toString(),
               type: 'circular',
