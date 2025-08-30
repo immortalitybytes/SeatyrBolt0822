@@ -863,11 +863,11 @@ const GuestManager: React.FC = () => {
           {/* For First-Time Users Box - 40% width, same height as right box */}
           <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
             <h3 className="font-bold text-[#566F9B] mb-4" style={{ fontSize: '1.25em' }}>For First-Time Users</h3>
-            <div className="h-full flex flex-col justify-center text-left">
-              <div className="space-y-3 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.5' }}>
-                <p>1.) Enter guest names in the box to the right.</p>
-                <p>2.) Click "Your Rules" at the top.</p>
-                <p>3.) Pair and Prevent as you like.</p>
+            <div className="h-full flex flex-col justify-center">
+              <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
+                <p className="text-left">1.) Click "Load Test Guest List" button.</p>
+                <p className="text-left">2.) Click "Your Rules" at the top.</p>
+                <p className="text-left">3.) Pair and Prevent as you like.</p>
               </div>
               
               {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
@@ -956,8 +956,8 @@ const GuestManager: React.FC = () => {
               <div className="mt-auto pt-4 flex space-x-2">
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn h-32 inline-flex items-center justify-center flex-1"
-                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center flex-1"
+                  style={{ height: '70.2px' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -965,8 +965,8 @@ const GuestManager: React.FC = () => {
                 
                 <button
                   onClick={handleAddGuests}
-                  className="danstyle1c-btn h-32 inline-flex items-center justify-center"
-                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center"
+                  style={{ height: '70.2px' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
                   <Plus className="w-4 h-4 mr-2" />
@@ -1066,8 +1066,8 @@ const GuestManager: React.FC = () => {
                 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn h-32 inline-flex items-center justify-center px-4"
-                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center px-4"
+                  style={{ height: '70.2px' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -1075,8 +1075,8 @@ const GuestManager: React.FC = () => {
                 
                 <button
                   onClick={handleAddGuests}
-                  className="danstyle1c-btn h-32 inline-flex items-center justify-center px-4"
-                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center px-4"
+                  style={{ height: '70.2px' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
                   <Plus className="w-4 h-4 mr-2" />
