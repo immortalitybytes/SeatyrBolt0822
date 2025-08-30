@@ -993,7 +993,6 @@ const GuestManager: React.FC = () => {
                   style={{ height: '70.2px' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
                   + Add
                 </button>
               </div>
@@ -1103,7 +1102,6 @@ const GuestManager: React.FC = () => {
                   style={{ height: '70.2px' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
-                  <Plus className="w-4 h-4 mr-2" />
                   + Add
                 </button>
               </div>
