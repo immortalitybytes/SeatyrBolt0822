@@ -587,6 +587,12 @@ const GuestManager: React.FC = () => {
     
     // Purge seating plans since guests changed
     purgeSeatingPlans();
+    
+    // Stop the glow effect after button is clicked
+    const button = document.getElementById('loadTestGuestListBtn');
+    if (button) {
+      button.classList.add('clicked');
+    }
   };
   
   const handleRenameGuest = (index: number, guestName?: string) => {
@@ -888,13 +894,17 @@ const GuestManager: React.FC = () => {
         <div className="flex items-stretch gap-6">
           {/* For First-Time Users Box - 40% width, same height as right box */}
           <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
-            <h3 className="font-bold text-[#566F9B] mb-3" style={{ fontSize: '1.25em' }}>For First-Time Users:</h3>
-            <div className="flex flex-col justify-between h-[320px]">
+
+            <div className="flex flex-col justify-between h-[256px]">
+              {/* 4-line text block: heading + 3 points - right-justified and middle-aligned */}
               <div className="flex-1 flex flex-col justify-center">
-                <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
-                  <p className="text-left">1.) Click "Load Test Guest List" button.</p>
-                  <p className="text-left">2.) Click "Your Rules" at the top.</p>
-                  <p className="text-left">3.) Pair and Prevent as you like.</p>
+                <div className="text-right pr-4">
+                  <h3 className="font-bold text-[#566F9B] mb-2" style={{ fontSize: '1.25em' }}>For First-Time Users:</h3>
+                  <div className="space-y-2 text-sm text-[#566F9B]" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
+                    <p>1.) Click "Load Test Guest List" button.</p>
+                    <p>2.) Click "Your Rules" at the top.</p>
+                    <p>3.) Pair and Prevent as you like.</p>
+                  </div>
                 </div>
               </div>
               
@@ -916,7 +926,7 @@ const GuestManager: React.FC = () => {
           
           {/* Enter Guest Names Box - 60% width, same height as left box */}
           <div className="flex-1 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
-            <div className="flex flex-col h-[320px]">
+            <div className="flex flex-col h-[256px]">
               <div className="text-sm text-gray-500 mt-2 space-y-1">
                 <p>Enter guest names separated by commas or line breaks.</p>
                 <p>Connect couples and parties with an ampersand (&).</p>
@@ -985,6 +995,7 @@ const GuestManager: React.FC = () => {
                   onClick={loadTestGuestList}
                   className="danstyle1c-btn inline-flex items-center justify-center"
                   style={{ height: '70.2px', width: '60%' }}
+                  id="loadTestGuestListBtn"
                 >
                   Load Test Guest List
                 </button>
