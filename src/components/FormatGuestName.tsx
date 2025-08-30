@@ -118,7 +118,7 @@ export const FormatConstraint: React.FC<FormatConstraintProps> = ({
 }) => {
   const getIcon = () => {
     switch (type) {
-      case 'must': return '✓';
+      case 'must': return '&'; // Changed from ✓ to & for consistency
       case 'cannot': return '✕';
       case 'adjacent': return '⭐';
       default: return '';

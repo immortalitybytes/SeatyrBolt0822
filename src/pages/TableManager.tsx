@@ -76,9 +76,9 @@ const ConstraintChipsInput: React.FC<{
         placeholder={placeholderText}
       />
       {activeFieldKey === inputKey && suggestions.length > 0 && (
-        <ul role="listbox" className="absolute z-10 mt-1 w-full bg-white border rounded shadow max-h-48 overflow-auto">
+        <ul role="listbox" className="absolute z-10 mt-1 w-full bg-white border rounded shadow-lg max-h-48 overflow-auto">
           {suggestions.map((s, i) => (
-            <li key={s} role="option" aria-selected={i === activeIndex} onMouseDown={() => addChip(s)} className={`px-2 py-1 text-sm cursor-pointer ${i === activeIndex ? 'bg-gray-100' : ''}`}>{s}</li>
+            <li key={s} role="option" aria-selected={i === activeIndex} onMouseDown={() => addChip(s)} className={`px-2 py-1 text-sm cursor-pointer ${i === activeIndex ? 'bg-indigo-100' : 'hover:bg-gray-50'}`}>{s}</li>
           ))}
         </ul>
       )}

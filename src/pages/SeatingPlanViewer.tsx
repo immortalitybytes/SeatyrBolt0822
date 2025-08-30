@@ -9,25 +9,40 @@ import { isPremiumSubscription } from '../utils/premium';
 
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
+    
+    // Improved regex: split only on connectors, preserving complete names
+    // This ensures "David Chen & Jessica Brown" becomes ["David Chen", " & ", "Jessica Brown"]
     const parts = rawName.split(/(\s*(?:&|\+|and|plus)\s*)/i);
     const finalTokens: (string | { type: 'delimiter'; value: string })[] = [];
   
     for (const part of parts) {
       if (/\s*(?:&|\+|and|plus)\s*/i.test(part)) {
+        // This is a connector - keep it as-is
         finalTokens.push({ type: 'delimiter', value: part });
       } else {
-        const numericMatch = part.match(/([+])\s*(\d+)$/);
+        // This is a name part - handle numeric suffixes
+        const trimmedPart = part.trim();
+        if (!trimmedPart) continue; // Skip empty parts
+        
+        const numericMatch = trimmedPart.match(/([+])\s*(\d+)$/);
         if (numericMatch) {
-          const baseName = part.substring(0, numericMatch.index).trim();
+          const baseName = trimmedPart.substring(0, numericMatch.index).trim();
           const num = parseInt(numericMatch[2], 10);
-          if (baseName) finalTokens.push(baseName);
+          
+          if (baseName) {
+            finalTokens.push(baseName);
+          }
+          
           for (let i = 0; i < num; i++) {
-            if (i > 0 || baseName) finalTokens.push({ type: 'delimiter', value: ` ${numericMatch[1]} ` });
+            if (i > 0 || baseName) {
+              finalTokens.push({ type: 'delimiter', value: ` ${numericMatch[1]} ` });
+            }
             const suffix = i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th';
-            finalTokens.push(`'${i + 1}${suffix} of ${num}'`);
+            finalTokens.push(`${i + 1}${suffix} of ${num}`);
           }
         } else {
-          finalTokens.push(part);
+          // Regular name part - add it as a complete unit
+          finalTokens.push(trimmedPart);
         }
       }
     }
@@ -36,10 +51,18 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     return (
       <>
         {finalTokens.map((token, index) => {
-          if (typeof token === 'object') return <span key={`del-${index}`}>{token.value}</span>;
+          if (typeof token === 'object') {
+            // This is a connector - render as-is
+            return <span key={`del-${index}`}>{token.value}</span>;
+          }
+          
+          // This is a name part - check if it should be bolded
           const isTarget = nameIndex === seatIndex;
           nameIndex++;
-          return isTarget ? <strong key={`tok-${index}`}>{token}</strong> : <span key={`tok-${index}`}>{token}</span>;
+          
+          return isTarget ? 
+            <strong key={`tok-${index}`}>{token}</strong> : 
+            <span key={`tok-${index}`}>{token}</span>;
         })}
       </>
     );

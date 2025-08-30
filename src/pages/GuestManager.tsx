@@ -18,7 +18,7 @@ import { saveRecentSessionSettings } from '../lib/sessionSettings';
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
 const GuestManager: React.FC = () => {
-  const { state, dispatch, user, subscription } = useApp();
+  const { state, dispatch } = useApp();
   const [guestInput, setGuestInput] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -49,8 +49,8 @@ const GuestManager: React.FC = () => {
   // Check if we need to trim the guest list (non-premium users)
   useEffect(() => {
     // Only run this check if we're not premium
-    if (!isPremiumSubscription(subscription)) {
-      const maxGuests = getMaxGuestLimit(subscription);
+    if (!isPremiumSubscription(state.subscription)) {
+      const maxGuests = getMaxGuestLimit(state.subscription);
       
       // If current guest list exceeds the limit, trim it
       if (state.guests.length > maxGuests) {
@@ -64,21 +64,21 @@ const GuestManager: React.FC = () => {
         alert(`Your guest list has been trimmed to ${maxGuests} guests (free user limit). Upgrade to Premium for unlimited guests.`);
       }
     }
-  }, [subscription, state.guests.length, dispatch]);
+  }, [state.subscription, state.guests.length, dispatch]);
 
   // --- IMPROVED: Fetch saved settings immediately on login/user change ---
   useEffect(() => {
-    if (user) {
+    if (state.user) {
       fetchSavedSettings();
     } else {
       setSavedSettings([]);
     }
     // eslint-disable-next-line
-  }, [user]);
+  }, [state.user]);
 
   // Real-time subscription to saved_settings table
   useEffect(() => {
-    if (!user) return;
+    if (!state.user) return;
     if (realtimeSubscription) {
       realtimeSubscription.unsubscribe();
     }
@@ -90,7 +90,7 @@ const GuestManager: React.FC = () => {
           event: '*',
           schema: 'public',
           table: 'saved_settings',
-          filter: `user_id=eq.${user.id}`
+          filter: `user_id=eq.${state.user.id}`
         },
         () => {
           fetchSavedSettings();
@@ -103,7 +103,7 @@ const GuestManager: React.FC = () => {
       setRealtimeSubscription(null);
     };
     // eslint-disable-next-line
-  }, [user]);
+  }, [state.user]);
 
   // Set showDuplicateWarning when duplicateGuests changes
   useEffect(() => {
@@ -114,7 +114,7 @@ const GuestManager: React.FC = () => {
   // Load video section collapsed/expanded state from localStorage and set based on login status
   useEffect(() => {
     // Determine default state based on login status
-    const userIsLoggedIn = !!user;
+    const userIsLoggedIn = !!state.user;
     
     if (userIsLoggedIn) {
       // For logged in users: default to collapsed
@@ -143,22 +143,22 @@ const GuestManager: React.FC = () => {
       // Save the default preference to localStorage
       localStorage.setItem('seatyr_video_visible', userIsLoggedIn ? 'false' : 'true');
     }
-  }, [user]);
+  }, [state.user]);
 
   // Save recent session settings when tables change
   useEffect(() => {
     const saveTablesForPremiumUsers = async () => {
-      if (state.user && isPremiumSubscription(subscription) && state.userSetTables) {
+      if (state.user && isPremiumSubscription(state.subscription) && state.userSetTables) {
         // Only save if there are tables with custom names
         const hasNamedTables = state.tables.some(table => table.name !== undefined);
         if (hasNamedTables) {
-          await saveRecentSessionSettings(state.user.id, isPremiumSubscription(subscription), state.tables);
+          await saveRecentSessionSettings(state.user.id, isPremiumSubscription(state.subscription), state.tables);
         }
       }
     };
     
     saveTablesForPremiumUsers();
-  }, [state.tables, state.user, subscription, state.userSetTables]);
+  }, [state.tables, state.user, state.subscription, state.userSetTables]);
 
 
 
@@ -184,7 +184,7 @@ const GuestManager: React.FC = () => {
   // Function to fetch saved settings from the central source
   const fetchSavedSettings = async () => {
     try {
-      if (!user) return;
+      if (!state.user) return;
       
       setLoadingSavedSettings(true);
       setSavedSettingsError(null);
@@ -192,7 +192,7 @@ const GuestManager: React.FC = () => {
       const { data, error } = await supabase
         .from('saved_settings')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', state.user.id)
         .order('updated_at', { ascending: false });
         
       if (error) {
@@ -318,7 +318,7 @@ const GuestManager: React.FC = () => {
           
           // Check guest limit before importing
           const totalGuests = configData.guests.length;
-          const isPremium = isPremiumSubscription(subscription);
+          const isPremium = isPremiumSubscription(state.subscription);
           const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
           
           if (totalGuests > maxGuestLimit && !isPremium) {
@@ -332,8 +332,8 @@ const GuestManager: React.FC = () => {
           dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
           
           // Clear recent session settings when importing
-          if (isPremium && user) {
-            clearRecentSessionSettings(user.id, true);
+          if (isPremium && state.user) {
+            clearRecentSessionSettings(state.user.id, true);
           }
           
           // Import the full configuration - replace everything
@@ -360,7 +360,7 @@ const GuestManager: React.FC = () => {
             .filter(guest => guest.name);
 
           if (guests.length > 0) {
-            const isPremium = isPremiumSubscription(subscription);
+            const isPremium = isPremiumSubscription(state.subscription);
             const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
             
             // Calculate total guests (current + new)
@@ -493,7 +493,7 @@ const GuestManager: React.FC = () => {
     
     const newGuests = parseGuestInput(guestInput);
     if (newGuests.length > 0) {
-      const isPremium = isPremiumSubscription(subscription);
+      const isPremium = isPremiumSubscription(state.subscription);
       const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
       
       // Calculate total guests (current + new)
@@ -625,8 +625,8 @@ const GuestManager: React.FC = () => {
     setShowClearConfirm(false);
     
     // Clear recent session settings when clearing guest list
-    if (isPremiumSubscription(subscription) && user) {
-      clearRecentSessionSettings(user.id, true);
+    if (isPremiumSubscription(state.subscription) && state.user) {
+      clearRecentSessionSettings(state.user.id, true);
     }
     
     // Also reset current setting name
@@ -642,7 +642,7 @@ const GuestManager: React.FC = () => {
     const testList = "Michael & Enid Lawrence, Sarah & Rachel & Billy Williams, David Chen & Jessica Brown, Christopher Davis, Ashley Miller & Plus One, Matthew Wilson & Amanda Moore, Joshua Taylor & Guest, Jennifer& Andrew &Thomas Bhasin, Elizabeth Jackson, Daniel White, Emily Harris and James Martin, Li Thompson, Robert Garcia, Nicole Martinez, John Jose Rodriguez, Stephanie Lewis, William Lee & Rachel Walker, Thomas Hall and Lauren Allen & Kid1 & Kid2, Richard Bryan %Marx Young, Samantha King+2, Charles Wright, Michelle Lopez, Joseph Scott, Kimberly Green, Mark Adams, Lisa Baker, Steven Gonzalez";
     const testGuests = parseGuestInput(testList);
     
-    const isPremium = isPremiumSubscription(subscription);
+    const isPremium = isPremiumSubscription(state.subscription);
     const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
     
     // Calculate total guests (current + new)
@@ -689,13 +689,13 @@ const GuestManager: React.FC = () => {
   };
 
   const handleUpgrade = async () => {
-    if (!user) {
+    if (!state.user) {
       setShowAuthModal(true);
       return;
     }
 
     try {
-      await redirectToCheckout(user.id);
+      await redirectToCheckout(state.user.id);
     } catch (error) {
       console.error('Error initiating checkout:', error);
       alert('Failed to start checkout process. Please try again.');
@@ -770,12 +770,12 @@ const GuestManager: React.FC = () => {
   };
 
   // Check premium status from app context
-  const isPremium = isPremiumSubscription(subscription);
+  const isPremium = isPremiumSubscription(state.subscription);
   const showUpgradePrompt = !isPremium && state.guests.length >= 70;
   const sortedGuests = getSortedGuests();
   
   // Get the current guest limit and percentage used
-  const maxGuestLimit = getMaxGuestLimit(subscription);
+  const maxGuestLimit = getMaxGuestLimit(state.subscription);
   const guestPercentage = isPremium ? 0 : Math.min(100, Math.round((state.guests.length / maxGuestLimit) * 100));
   const isApproachingLimit = !isPremium && state.guests.length >= maxGuestLimit * 0.8;
 
@@ -879,7 +879,7 @@ const GuestManager: React.FC = () => {
             <div className="relative w-full pt-[37.5%] overflow-hidden">
               <iframe
                 ref={videoRef}
-                src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
+                src={`https://player.vimeo.com/video/1085961997?badge=0&autopause=0&player_id=0&app_id=58479&autoplay=${!state.user ? '1' : '0'}&muted=1&loop=1&dnt=1`}
                 allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media"
                 title="SeatyrBannerV1cVideo"
                 className="absolute top-0 left-0 w-full h-full"
@@ -903,23 +903,25 @@ const GuestManager: React.FC = () => {
 
 
 
-      {/* Guest Manager heading hidden per P2.B */}
+            {/* Guest Manager heading hidden per P2.B */}
       {null}
       
-      <div className="flex items-stretch gap-4">
-        {/* For First-Time Users Box - fixed width, won't expand */}
-        <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
-          <h3 className="font-bold text-[#566F9B] mb-3" style={{ fontSize: '1.25em' }}>For First-Time Users</h3>
-          <div className="h-full flex flex-col justify-center text-left">
-            <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.4' }}>
-              <p>1.) Click "Load Test Guest List" button.</p>
-              <p>2.) Click "Your Rules" at the top.</p>
-              <p>3.) Pair and prevent as you like.</p>
-            </div>
-            
-            {/* Pulsing Arrow Emoji for Unsigned Users - changed to right arrow */}
-            {!user && (
-              <div className="flex justify-center mt-4">
+      {/* CONDITIONAL LAYOUTS BASED ON USER STATUS */}
+      {!state.user ? (
+        /* LAYOUT #1: Non-signed users (first-time visitors) */
+        <div className="flex items-stretch gap-6">
+          {/* For First-Time Users Box - 40% width, same height as right box */}
+          <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
+            <h3 className="font-bold text-[#566F9B] mb-4" style={{ fontSize: '1.25em' }}>For First-Time Users</h3>
+            <div className="h-full flex flex-col justify-center text-left">
+              <div className="space-y-3 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.5' }}>
+                <p>1.) Click "Load Test Guest List" button.</p>
+                <p>2.) Click "Your Rules" at the top.</p>
+                <p>3.) Pair and Prevent as you like.</p>
+              </div>
+              
+              {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
+              <div className="flex justify-end mt-4">
                 <div 
                   className="pulsing-arrow"
                   style={{
@@ -931,23 +933,114 @@ const GuestManager: React.FC = () => {
                   ➡️
                 </div>
               </div>
-            )}
+            </div>
+          </div>
+          
+          {/* Enter Guest Names Box - 60% width, same height as left box */}
+          <div className="flex-1 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
+            <div className="flex flex-col h-full">
+              <h3 className="text-lg font-semibold text-gray-700 mb-4">Enter guest names</h3>
+              <div className="text-sm text-gray-500 mt-2 space-y-1">
+                <p>Enter guest names separated by commas or line breaks.</p>
+                <p>Connect couples and parties with an ampersand (&).</p>
+              </div>
+              
+              <div className="mt-3 text-sm text-gray-600">
+                {!isPremium && (
+                  <p>Free plan: {(() => {
+                    const totalSeats = (state.guests ?? []).reduce((s,g)=> s + Math.max(1, g.count ?? 1), 0);
+                    return totalSeats;
+                  })()}/80 guests used</p>
+                )}
+              </div>
+              
+              <textarea
+                value={guestInput}
+                onChange={(e) => {
+                  setGuestInput(e.target.value);
+                  // Clear duplicate warnings when input changes
+                  if (duplicateGuests.length > 0) {
+                    setLocalDuplicateGuests([]);
+                    dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
+                    setShowDuplicateWarning(false);
+                  }
+                }}
+                placeholder="e.g., Alice, Bob&#13;&#10;Carol & David"
+                className="w-full px-3 py-2 border border-[#586D78] border-[1.5px] rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] min-h-[100px] mt-2"
+                rows={4}
+                onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && handleAddGuests()}
+              />
+              
+              {/* Display duplicate guest warning */}
+              {showDuplicateWarning && (
+                <div className="p-3 bg-[#88abc6] border border-[#88abc6] rounded-md relative mt-3">
+                  <div className="flex items-start pr-8">
+                    <AlertCircle className="text-white mr-2 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-white font-medium">Duplicate Guest Names Detected</p>
+                      <p className="text-white text-sm">
+                        The following names already exist in your guest list and were not added:
+                      </p>
+                      <ul className="text-white text-sm mt-1 list-disc pl-5">
+                        {duplicateGuests.map((name, index) => (
+                          <li key={index}>{name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                  <button
+                    className="absolute top-2 right-2 text-white hover:text-white"
+                    onClick={handleCloseDuplicateWarning}
+                    aria-label="Close warning"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
+              
+              {importError && (
+                <div className="text-red-600 text-sm mt-2">{importError}</div>
+              )}
+              
+              {/* Buttons - ALL double height, no Load Test button for non-signed users */}
+              <div className="mt-auto pt-4 flex space-x-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="danstyle1c-btn h-32 inline-flex items-center justify-center flex-1"
+                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Guests & Settings
+                </button>
+                
+                <button
+                  onClick={handleAddGuests}
+                  className="danstyle1c-btn h-32 inline-flex items-center justify-center"
+                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
+                  disabled={!isPremium && state.guests.length >= maxGuestLimit}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  + Add
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <div className="flex-1 space-y-14 h-full">
+      ) : (
+        /* LAYOUT #2: Signed users (both free and premium) */
+        <div className="w-full">
           <Card>
-                          <div className="space-y-14">
+            <div className="space-y-4">
               <div>
-                <p className="text-gray-700 text-[17px]">Enter guest names separated by commas or line breaks.</p>
-                <p className="text-gray-700 text-[17px]">Connect couples and parties with an ampersand (&).</p>
+                <p className="text-gray-700 text-[17px]">• Enter guest names separated by commas or line breaks.</p>
+                <p className="text-gray-700 text-[17px]">• Connect couples and parties with an ampersand (&), plus (+), or the word "and".</p>
                 
                 {!isPremium && (
                   <div className="mt-2">
                     {(() => {
                       const totalSeats = (state.guests ?? []).reduce((s,g)=> s + Math.max(1, g.count ?? 1), 0);
                       return (
-                        <p className="text-sm text-[#586D78]">Free plan: {totalSeats}/80 guests used</p>
+                        <p className="text-sm text-[#586D78]" style={{ fontSize: '0.7em' }}>Free plan: {totalSeats}/80 guests used</p>
                       );
                     })()}
                   </div>
@@ -1011,17 +1104,8 @@ const GuestManager: React.FC = () => {
                 <div className="text-red-600 text-sm mt-2">{importError}</div>
               )}
               
-
-              
+              {/* Buttons - ALL double height, no Load Test button for signed users */}
               <div className="flex space-x-2">
-                <button
-                  onClick={loadTestGuestList}
-                  className={`danstyle1c-btn h-16 inline-flex items-center justify-center px-4 ${!user ? 'visitor-test-button' : ''}`}
-                  disabled={!isPremium && state.guests.length + 26 > maxGuestLimit}
-                >
-                  Load Test Guest List
-                </button>
-                
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -1032,7 +1116,8 @@ const GuestManager: React.FC = () => {
                 
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="danstyle1c-btn h-16 inline-flex items-center justify-center px-4"
+                  className="danstyle1c-btn h-32 inline-flex items-center justify-center px-4"
+                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -1040,11 +1125,12 @@ const GuestManager: React.FC = () => {
                 
                 <button
                   onClick={handleAddGuests}
-                  className="danstyle1c-btn h-16 inline-flex items-center justify-center px-4"
+                  className="danstyle1c-btn h-32 inline-flex items-center justify-center px-4"
+                  style={{ height: 'calc(2 * var(--header-button-height, 48px))' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Add
+                  + Add
                 </button>
               </div>
               
@@ -1059,7 +1145,7 @@ const GuestManager: React.FC = () => {
             </div>
           </Card>
         </div>
-      </div>
+      )}
 
       {/* MainSavedSettings collapsible section - Always present */}
       <button
@@ -1067,7 +1153,7 @@ const GuestManager: React.FC = () => {
         style={{ backgroundColor: '#d7e5e5' }}
         onClick={() => {
           // When opening, fetch the latest data
-          if (!showSavedSettings && user) {
+          if (!showSavedSettings && state.user) {
             fetchSavedSettings();
           }
           setShowSavedSettings(!showSavedSettings);
@@ -1084,7 +1170,7 @@ const GuestManager: React.FC = () => {
       {showSavedSettings && (
         <Card>
 
-          {!user ? (
+          {!state.user ? (
             <div className="text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
               <p className="text-gray-600 mb-2">Please log in to view your saved settings.</p>
               <button 
