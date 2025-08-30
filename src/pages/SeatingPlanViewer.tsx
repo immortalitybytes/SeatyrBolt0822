@@ -210,7 +210,100 @@ const SeatingPlanViewer: React.FC = () => {
           )}
       </Card>
       <Card title={`Current Plan (${state.currentPlanIndex + 1} of ${state.seatingPlans.length})`}>
+        {/* Navigation buttons above the grid - same layout as ConstraintManager */}
+        {state.seatingPlans.length > 1 && (
+          <div className="flex justify-center space-x-2 mb-4">
+            <button
+              className="danstyle1c-btn w-24 mx-1"
+              onClick={() => handleNavigatePlan(-1)}
+              disabled={state.currentPlanIndex <= 0}
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Previous
+            </button>
+
+            {/* Page number buttons */}
+            {state.seatingPlans.length <= 7 ? (
+              // Show all page numbers if 7 or fewer
+              Array.from({ length: state.seatingPlans.length }, (_, i) => (
+                <button
+                  key={i}
+                  className={`danstyle1c-btn w-8 mx-1 ${state.currentPlanIndex === i ? 'selected' : ''}`}
+                  onClick={() => dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: i })}
+                >
+                  {i + 1}
+                </button>
+              ))
+            ) : (
+              // Show pagination with ellipsis for many pages
+              <>
+                {/* First page */}
+                <button
+                  className={`danstyle1c-btn w-8 mx-1 ${state.currentPlanIndex === 0 ? 'selected' : ''}`}
+                  onClick={() => dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 })}
+                >
+                  1
+                </button>
+
+                {/* Ellipsis if needed */}
+                {state.currentPlanIndex > 2 && (
+                  <span className="mx-2 text-gray-500">...</span>
+                )}
+
+                {/* Current page and neighbors */}
+                {state.currentPlanIndex > 0 && (
+                  <button
+                    className="danstyle1c-btn w-8 mx-1"
+                    onClick={() => dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: state.currentPlanIndex - 1 })}
+                  >
+                    {state.currentPlanIndex}
+                  </button>
+                )}
+
+                <button className="danstyle1c-btn w-8 mx-1 selected">
+                  {state.currentPlanIndex + 1}
+                </button>
+
+                {state.currentPlanIndex < state.seatingPlans.length - 1 && (
+                  <button
+                    className="danstyle1c-btn w-8 mx-1"
+                    onClick={() => dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: state.currentPlanIndex + 1 })}
+                  >
+                    {state.currentPlanIndex + 2}
+                  </button>
+                )}
+
+                {/* Ellipsis if needed */}
+                {state.currentPlanIndex < state.seatingPlans.length - 3 && (
+                  <span className="mx-2 text-gray-500">...</span>
+                )}
+
+                {/* Last page */}
+                {state.currentPlanIndex < state.seatingPlans.length - 1 && (
+                  <button
+                    className={`danstyle1c-btn w-8 mx-1 ${state.currentPlanIndex === state.seatingPlans.length - 1 ? 'selected' : ''}`}
+                    onClick={() => dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: state.seatingPlans.length - 1 })}
+                  >
+                    {state.seatingPlans.length}
+                  </button>
+                )}
+              </>
+            )}
+
+            <button
+              className="danstyle1c-btn w-24 mx-1"
+              onClick={() => handleNavigatePlan(1)}
+              disabled={state.currentPlanIndex >= state.seatingPlans.length - 1}
+            >
+              Next
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </button>
+          </div>
+        )}
+
         {renderCurrentPlan()}
+        
+        {/* Bottom navigation buttons - preserved */}
         {plan && (
             <div className="mt-6 flex justify-center space-x-4">
                 <button className="danstyle1c-btn" onClick={() => handleNavigatePlan(-1)} disabled={state.currentPlanIndex <= 0}><ArrowLeft className="w-4 h-4 mr-2" /> Previous</button>

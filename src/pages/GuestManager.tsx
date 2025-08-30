@@ -562,6 +562,32 @@ const GuestManager: React.FC = () => {
     dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
     setShowDuplicateWarning(false);
   };
+
+  const loadTestGuestList = () => {
+    const testGuests = [
+      { name: 'Alice Smith', count: 1 },
+      { name: 'Bob & Carol Johnson', count: 2 },
+      { name: 'David Chen & Jessica Brown', count: 2 },
+      { name: 'Emma Wilson', count: 1 },
+      { name: 'Frank & Grace & Henry Davis', count: 3 },
+      { name: 'Isabella Martinez', count: 1 },
+      { name: 'Jack & Kate & Liam & Mia Thompson', count: 4 },
+      { name: 'Noah & Olivia Parker', count: 2 },
+      { name: 'Paul & Quinn & Rachel & Sam & Tina Underwood', count: 5 },
+      { name: 'Victor & Wendy Young', count: 2 }
+    ];
+    
+    // Clear existing guests and add test list
+    dispatch({ type: 'SET_GUESTS', payload: testGuests });
+    
+    // Clear any warnings
+    setLocalDuplicateGuests([]);
+    setShowDuplicateWarning(false);
+    dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
+    
+    // Purge seating plans since guests changed
+    purgeSeatingPlans();
+  };
   
   const handleRenameGuest = (index: number, guestName?: string) => {
     setEditingGuestId(index);
@@ -889,7 +915,6 @@ const GuestManager: React.FC = () => {
           {/* Enter Guest Names Box - 60% width, same height as left box */}
           <div className="flex-1 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
             <div className="flex flex-col h-full">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Enter guest names</h3>
               <div className="text-sm text-gray-500 mt-2 space-y-1">
                 <p>Enter guest names separated by commas or line breaks.</p>
                 <p>Connect couples and parties with an ampersand (&).</p>
@@ -952,15 +977,14 @@ const GuestManager: React.FC = () => {
                 <div className="text-red-600 text-sm mt-2">{importError}</div>
               )}
               
-              {/* Buttons - ALL double height, no Load Test button for non-signed users */}
+              {/* Buttons - Load Test Guest List and + Add for non-signed users */}
               <div className="mt-auto pt-4 flex space-x-2">
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={loadTestGuestList}
                   className="danstyle1c-btn inline-flex items-center justify-center flex-1"
                   style={{ height: '70.2px' }}
                 >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Guests & Settings
+                  Load Test Guest List
                 </button>
                 
                 <button
