@@ -28,7 +28,11 @@ const GuestManager: React.FC = () => {
   const [editingGuestId, setEditingGuestId] = useState<number | null>(null);
   const [editingGuestName, setEditingGuestName] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('as-entered');
-  const [videoVisible, setVideoVisible] = useState(false);
+  const [videoVisible, setVideoVisible] = useState(() => {
+    // Initialize based on user status immediately
+    const userIsLoggedIn = !!state.user;
+    return !userIsLoggedIn; // true for non-signed, false for signed
+  });
   const videoRef = useRef<HTMLIFrameElement>(null);
   
   // Use duplicateGuests from state (if available) or local state as fallback
