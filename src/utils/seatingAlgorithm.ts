@@ -174,7 +174,7 @@ export function detectConstraintConflicts(
   const conflicts: any[] = [];
   if (guests.length === 0 || tables.length === 0) return [];
 
-  const guestMap = new Map(guests.map(g => [g.name, g]));
+  const guestMap = new Map(guests.map(g => [g.id, g]));
 
   // Circular dependencies - improved detection
   const visited = new Set<string>();
@@ -266,7 +266,7 @@ export function detectConstraintConflicts(
 
   // Capacity violations - FIXED: use t.capacity instead of t.seats
   const dsu = new DSU();
-  guests.forEach(g => dsu.find(g.name));
+  guests.forEach(g => dsu.find(g.id));
   for (const [guest1, guestConstraints] of Object.entries(constraints)) {
     for (const [guest2, constraint] of Object.entries(guestConstraints)) {
       if (constraint === 'must') {
@@ -278,9 +278,9 @@ export function detectConstraintConflicts(
   // Get groups from DSU
   const groups = new Map<string, string[]>();
   for (const guest of guests) {
-    const root = dsu.find(guest.name);
+    const root = dsu.find(guest.id);
     if (!groups.has(root)) groups.set(root, []);
-    groups.get(root)!.push(guest.name);
+    groups.get(root)!.push(guest.id);
   }
   
   // FIXED: Use t.seats (which is the capacity) instead of t.seats array
