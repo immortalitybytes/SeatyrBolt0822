@@ -71,7 +71,7 @@ function totalSeatsNeeded(guests: { count?: number }[]): number {
 }
 
 function reconcileTables(
-  tables: { id: number; name?: string; seats: number }[],
+  tables: Table[],
   guests: { count?: number }[],
   assignments: Record<string, string> | undefined
 ) {
@@ -89,11 +89,11 @@ function reconcileTables(
     const ids = tables.map(t => t.id);
     let next = ids.length ? Math.max(...ids) + 1 : 1;
     const out = tables.slice();
-    for (let i = 0; i < delta; i++) out.push({ id: next++, name: '', seats: DEFAULT_TABLE_CAPACITY });
+    for (let i = 0; i < delta; i++) out.push({ id: next++, name: null, seats: DEFAULT_TABLE_CAPACITY });
     return out;
   } else {
-    const toRemove = untouched.slice().sort((a,b) => b.id - a.id).slice(0, -delta).map(t => t.id);
-    return tables.filter(t => !toRemove.includes(t.id));
+    const toRemove = new Set(untouched.sort((a,b) => b.id - a.id).slice(0, -delta).map(t => t.id));
+    return tables.filter(t => !toRemove.has(t.id));
   }
 }
 

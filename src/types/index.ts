@@ -1,36 +1,41 @@
+export type GuestID = string;
+
 export interface Guest {
-  name: string;
-  count: number;
+  id: GuestID;         // stable internal id, NOT the display name
+  name: string;        // display name (may change)
+  count: number;       // >= 1, whole party size
 }
 
 export interface Table {
-  id: number;
-  seats: number;
-  name?: string; // Optional custom name for the table
+  id: number;          // stable numeric id
+  name?: string | null;
+  seats: number;       // editor "capacity"
 }
 
-export type Constraint = 'must' | 'cannot' | '';
+export interface PlanSeat {
+  name: string;        // display name at render time
+  partyIndex: number;  // 0..(count-1) for the original guest
+}
 
-export interface Assignment {
-  name: string;
-  tables: string;
+export interface PlanTable {
+  id: number;
+  capacity: number;
+  seats: PlanSeat[];   // length <= capacity
 }
 
 export interface SeatingPlan {
-  id: number;
-  tables: TableAssignment[];
+  id: number;          // unique plan id for UI nav
+  tables: PlanTable[]; // sorted by table.id asc
 }
 
-export interface TableAssignment {
-  id: number;
-  seats: Guest[];
-  capacity: number;
-}
+export type Assignments = Record<GuestID, string>; // ID-CSV (e.g. "1,3,5")
+export type ConstraintValue = 'must' | 'cannot' | '';
+export type Constraints = Record<GuestID, Record<GuestID, ConstraintValue>>;
+export type Adjacents = Record<GuestID, GuestID[]>; // degree <= 2
 
 export interface ValidationError {
+  type: 'error' | 'warn';
   message: string;
-  type: 'error' | 'warning';
-  details?: any;
 }
 
 export interface ConstraintConflict {
@@ -38,7 +43,7 @@ export interface ConstraintConflict {
   type: 'circular' | 'impossible' | 'capacity_violation' | 'adjacency_violation';
   severity: 'low' | 'medium' | 'high' | 'critical';
   description: string;
-  affectedGuests: string[];
+  affectedGuests: GuestID[];
 }
 
 export interface UserSubscription {
@@ -78,9 +83,9 @@ export interface BetaCode {
 export interface AppState {
   guests: Guest[];
   tables: Table[];
-  constraints: Record<string, Record<string, 'must' | 'cannot' | ''>>;
-  adjacents: Record<string, string[]>;
-  assignments: Record<string, string>;
+  constraints: Constraints;
+  adjacents: Adjacents;
+  assignments: Assignments;
   seatingPlans: SeatingPlan[];
   currentPlanIndex: number;
   subscription: UserSubscription | null;
@@ -91,4 +96,5 @@ export interface AppState {
   isSupabaseConnected?: boolean;
   hideTableReductionNotice?: boolean; // Flag to track if table reduction notice has been dismissed
   duplicateGuests?: string[]; // List of duplicate guest names for warnings
+  assignmentSignature: string; // Stable signature for assignment changes to trigger effects
 }

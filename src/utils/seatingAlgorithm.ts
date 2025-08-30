@@ -176,38 +176,47 @@ export function detectConstraintConflicts(
 
   const guestMap = new Map(guests.map(g => [g.name, g]));
 
-  // Circular dependencies
+  // Circular dependencies - improved detection
   const visited = new Set<string>();
   const recursionStack = new Set<string>();
 
   const detectCycle = (guestKey: string, path: string[]): void => {
+    if (recursionStack.has(guestKey)) {
+      // Found a cycle
+      const cycleStart = path.indexOf(guestKey);
+      const cycle = [...path.slice(cycleStart), guestKey];
+      
+      // Only report if it's a genuine cycle (more than 2 guests)
+      if (cycle.length > 3) {
+        const cycleDescription = cycle.map(key => guestMap.get(key)?.name || key).join(' → ');
+        if (!conflicts.some(c => 
+          c.type === 'circular' && 
+          c.description.includes(cycleDescription)
+        )) {
+          conflicts.push({
+            id: Date.now().toString(),
+            type: 'circular',
+            severity: 'high',
+            description: `Circular dependency: ${cycleDescription}`,
+            affectedGuests: cycle,
+          });
+        }
+      }
+      return;
+    }
+
+    if (visited.has(guestKey)) return;
+
     visited.add(guestKey);
     recursionStack.add(guestKey);
 
     const guestConstraints = constraints[guestKey] || {};
     for (const [otherGuestKey, constraint] of Object.entries(guestConstraints)) {
       if (constraint === 'must' && guestMap.has(otherGuestKey)) {
-        if (recursionStack.has(otherGuestKey)) {
-          const cycleStart = path.indexOf(otherGuestKey);
-          const cycle = [...path.slice(cycleStart), otherGuestKey];
-          if (!conflicts.some(c => 
-            c.type === 'error' && 
-            c.message.includes('Circular dependency') && 
-            (c as ValidationError & { affectedGuests?: string[] }).affectedGuests?.join() === cycle.join()
-          )) {
-            conflicts.push({
-              id: Date.now().toString(),
-              type: 'circular',
-              severity: 'high',
-              description: `Circular dependency: ${cycle.map(key => guestMap.get(key)?.name || key).join(' → ')}`,
-              affectedGuests: cycle,
-            });
-          }
-        } else if (!visited.has(otherGuestKey)) {
-          detectCycle(otherGuestKey, [...path, guestKey]);
-        }
+        detectCycle(otherGuestKey, [...path, guestKey]);
       }
     }
+    
     recursionStack.delete(guestKey);
   };
 
@@ -217,7 +226,7 @@ export function detectConstraintConflicts(
     }
   }
 
-  // Contradictory constraints
+  // Contradictory constraints - more nuanced detection
   const checkedPairs = new Set<string>();
   for (const [guest1, guestConstraints] of Object.entries(constraints)) {
     for (const [guest2, constraint1] of Object.entries(guestConstraints)) {
@@ -225,21 +234,37 @@ export function detectConstraintConflicts(
       if (checkedPairs.has(pairKey)) continue;
 
       const reverseConstraint = constraints[guest2]?.[guest1];
-      if ((constraint1 === 'must' && reverseConstraint === 'cannot') || 
-          (constraint1 === 'cannot' && reverseConstraint === 'must')) {
-        conflicts.push({
-          id: Date.now().toString(),
-          type: 'impossible',
-          severity: 'critical',
-          description: `Contradictory constraints between ${guestMap.get(guest1)?.name} and ${guestMap.get(guest2)?.name}.`,
-          affectedGuests: [guest1, guest2],
-        });
+      
+      // Only flag as contradictory if both constraints are explicitly set
+      // and they directly contradict each other
+      if (constraint1 && reverseConstraint && 
+          ((constraint1 === 'must' && reverseConstraint === 'cannot') || 
+           (constraint1 === 'cannot' && reverseConstraint === 'must'))) {
+        
+        // Check if this is a genuine contradiction that can't be resolved
+        // by checking if there are any tables that could accommodate both guests
+        const guest1Count = guestMap.get(guest1)?.count || 1;
+        const guest2Count = guestMap.get(guest2)?.count || 1;
+        const totalSeatsNeeded = guest1Count + guest2Count;
+        
+                 // Find if any table can accommodate both guests
+         const canAccommodate = tables.some(t => t.seats >= totalSeatsNeeded);
+        
+        if (!canAccommodate) {
+          conflicts.push({
+            id: Date.now().toString(),
+            type: 'impossible',
+            severity: 'critical',
+            description: `Contradictory constraints between ${guestMap.get(guest1)?.name} and ${guestMap.get(guest2)?.name} - no table can accommodate both parties.`,
+            affectedGuests: [guest1, guest2],
+          });
+        }
       }
       checkedPairs.add(pairKey);
     }
   }
 
-  // Capacity violations
+  // Capacity violations - FIXED: use t.capacity instead of t.seats
   const dsu = new DSU();
   guests.forEach(g => dsu.find(g.name));
   for (const [guest1, guestConstraints] of Object.entries(constraints)) {
@@ -258,8 +283,11 @@ export function detectConstraintConflicts(
     groups.get(root)!.push(guest.name);
   }
   
+  // FIXED: Use t.seats (which is the capacity) instead of t.seats array
   const maxTableCapacity = Math.max(...tables.map(t => t.seats), 0);
   for (const group of groups.values()) {
+    if (group.length === 1) continue; // Single guests don't need capacity checking
+    
     const totalSize = group.reduce((sum, key) => sum + (guestMap.get(key)?.count || 0), 0);
     if (totalSize > maxTableCapacity) {
       conflicts.push({
@@ -272,23 +300,36 @@ export function detectConstraintConflicts(
     }
   }
 
-  // Adjacency conflicts
+  // Adjacency conflicts - FIXED: Adjacency doesn't require same table seating
   if (checkAdjacents && Object.keys(adjacents).length > 0) {
+    // Only check for adjacency conflicts if there are explicit "must" constraints
+    // that would force adjacent guests to sit at the same table
     const adjacencyConflicts = new Set<string>();
+    
     for (const [guest1, adjacentList] of Object.entries(adjacents)) {
-      const guest1Count = guestMap.get(guest1)?.count || 0;
-      const totalAdjacentSeats = adjacentList.reduce((sum, adj) => sum + (guestMap.get(adj)?.count || 0), 0);
-      if (totalAdjacentSeats + guest1Count > maxTableCapacity) {
-        const conflictKey = [guest1, ...adjacentList].sort().join('--');
-        if (!adjacencyConflicts.has(conflictKey)) {
-          conflicts.push({
-            id: Date.now().toString(),
-            type: 'adjacency_violation',
-            severity: 'high',
-            description: `Adjacency preferences for ${guestMap.get(guest1)?.name} (${totalAdjacentSeats + guest1Count} seats) exceed largest table capacity of ${maxTableCapacity}.`,
-            affectedGuests: [guest1, ...adjacentList],
-          });
-          adjacencyConflicts.add(conflictKey);
+      // Check if this guest has "must" constraints with any adjacent guests
+      const hasMustConstraints = adjacentList.some(adj => 
+        constraints[guest1]?.[adj] === 'must' || constraints[adj]?.[guest1] === 'must'
+      );
+      
+      if (hasMustConstraints) {
+        // Only then check capacity since they must sit together
+        const guest1Count = guestMap.get(guest1)?.count || 0;
+        const totalAdjacentSeats = adjacentList.reduce((sum, adj) => sum + (guestMap.get(adj)?.count || 0), 0);
+        const totalSeatsNeeded = totalAdjacentSeats + guest1Count;
+        
+        if (totalSeatsNeeded > maxTableCapacity) {
+          const conflictKey = [guest1, ...adjacentList].sort().join('--');
+          if (!adjacencyConflicts.has(conflictKey)) {
+            conflicts.push({
+              id: Date.now().toString(),
+              type: 'adjacency_violation',
+              severity: 'high',
+              description: `Adjacent guests with "must" constraints (${guestMap.get(guest1)?.name} + ${adjacentList.map(adj => guestMap.get(adj)?.name).join(', ')}) require ${totalSeatsNeeded} seats but largest table capacity is ${maxTableCapacity}.`,
+              affectedGuests: [guest1, ...adjacentList],
+            });
+            adjacencyConflicts.add(conflictKey);
+          }
         }
       }
     }

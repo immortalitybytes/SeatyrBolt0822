@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Table as TableIcon, Plus, Trash2, MapPin, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Table as TableIcon, Plus, Trash2, Edit2, Crown, AlertCircle, X, MapPin, ChevronDown, ChevronUp } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
@@ -91,10 +91,14 @@ const TableManager: React.FC = () => {
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
-  const [isTablesOpen, setIsTablesOpen] = useState(false);
+  const [isTablesOpen, setIsTablesOpen] = useState(true);
   const [isAssignmentsOpen, setIsAssignmentsOpen] = useState(true);
   const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('as-entered');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
+  
+  const totalSeats = state.tables.reduce((sum, table) => sum + table.seats, 0);
+  
+  // Check if user has premium subscription
   const isPremium = isPremiumSubscription(state.subscription);
 
   const purgePlans = () => {
@@ -111,47 +115,101 @@ const TableManager: React.FC = () => {
   }, [totalSeatsNeeded, state.assignments, dispatch]);
 
   const handleAddTable = () => {
-    if (state.tables.length >= 100) return;
+    if (state.tables.length >= 100) {
+      alert('Maximum number of tables (100) reached.');
+      return;
+    }
+    
+    dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
     dispatch({ type: 'ADD_TABLE', payload: {} });
     purgePlans();
   };
-
+  
   const handleRemoveTable = (id: number) => {
-    if (window.confirm('Are you sure?')) {
+    if (window.confirm('Are you sure you want to remove this table? This will also update any assignments that reference this table.')) {
+      dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
       dispatch({ type: 'REMOVE_TABLE', payload: id });
       purgePlans();
     }
   };
-
+  
   const handleUpdateSeats = (id: number, value: string) => {
     const seats = parseInt(value, 10);
     if (Number.isFinite(seats) && seats >= 1 && seats <= 20) {
+      dispatch({ type: 'SET_USER_SET_TABLES', payload: true });
       dispatch({ type: 'UPDATE_TABLE_SEATS', payload: { id, seats } });
       purgePlans();
     }
   };
-
-  const saveTableName = () => {
+  
+  const handleTableNameDoubleClick = (id: number, currentName?: string | null) => {
+    if (!isPremium) return; // Only premium users can rename tables
+    
+    setEditingTableId(id);
+    setEditingName(currentName || `Table ${id}`);
+    setNameError(null);
+  };
+  
+  const handleTableNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEditingName(e.target.value);
+    setNameError(null);
+  };
+  
+  const handleTableNameBlur = () => {
     if (editingTableId === null) return;
+    
     const trimmedName = editingName.trim();
-    if (!trimmedName) { setEditingTableId(null); return; }
-    const nameExists = state.tables.some(t => t.id !== editingTableId && t.name?.toLowerCase() === trimmedName.toLowerCase());
-    if (nameExists) { setNameError('That name is already in use.'); return; }
-    dispatch({ type: 'UPDATE_TABLE_NAME', payload: { id: editingTableId, name: trimmedName === `Table ${editingTableId}` ? '' : trimmedName } });
+    
+    // If the name is empty, revert to default
+    if (!trimmedName) {
+      setEditingTableId(null);
+      return;
+    }
+    
+    // Check for duplicate names
+    const nameExists = state.tables.some(
+      table => table.id !== editingTableId && 
+               (table.name?.toLowerCase() === trimmedName.toLowerCase() || 
+                (!table.name && `Table ${table.id}`.toLowerCase() === trimmedName.toLowerCase()))
+    );
+    
+    if (nameExists) {
+      setNameError("That name is already in use. Please choose another.");
+      return;
+    }
+    
+    // Update the table name
+    dispatch({ 
+      type: 'UPDATE_TABLE_NAME', 
+      payload: { id: editingTableId, name: trimmedName === `Table ${editingTableId}` ? undefined : trimmedName } 
+    });
+    
     setEditingTableId(null);
     purgePlans();
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') saveTableName();
-    if (e.key === 'Escape') setEditingTableId(null);
-  };
   
-  const handleUpdateAssignment = (name: string, value: string) => {
-    dispatch({ type: 'UPDATE_ASSIGNMENT', payload: { name, tables: value } });
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleTableNameBlur();
+    } else if (e.key === 'Escape') {
+      setEditingTableId(null);
+      setNameError(null);
+    }
+  };
+
+  const getTableDisplayName = (table: { id: number, name?: string | null }) => {
+    return table.name || `Table ${table.id}`;
+  };
+
+  // Functions for Assignment Manager functionality
+  const handleUpdateAssignment = (guestName: string, value: string) => {
+    dispatch({
+      type: 'UPDATE_ASSIGNMENT',
+      payload: { name: guestName, tables: value }
+    });
     purgePlans();
   };
-
+  
   const updateConstraints = (guestName: string, newNames: string[], type: 'must' | 'cannot') => {
     const oldConstraints = Object.entries(state.constraints[guestName] ?? {}).filter(([, v]) => v === type).map(([k]) => k);
     const added = newNames.filter(n => !oldConstraints.includes(n));
@@ -160,8 +218,20 @@ const TableManager: React.FC = () => {
     removed.forEach(name => dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guestName, guest2: name, value: '' } }));
     if (added.length || removed.length) purgePlans();
   };
-
-  const getTableList = () => state.tables.map(t => (t.name ? `${t.id} (${t.name})` : t.id)).join(', ');
+  
+  const getTableList = () => {
+    if (!isPremium || !state.tables.some(t => t.name)) {
+      return state.tables.map(t => t.id).join(', ');
+    }
+    
+    // For premium users with renamed tables, show both IDs and names
+    return state.tables.map(t => {
+      if (t.name) {
+        return `${t.id} (${t.name})`;
+      }
+      return t.id;
+    }).join(', ');
+  };
 
   const currentTableKey = (name: string, plan: { tables: { id: number; seats: any[] }[] } | null) => {
     if (plan?.tables) {
@@ -191,26 +261,201 @@ const TableManager: React.FC = () => {
   const accordionHeaderStyles = "flex justify-between items-center p-3 rounded-md bg-[#D7E5E5] cursor-pointer";
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#586D78] flex items-center"><TableIcon className="mr-2" /> Tables</h1>
+    <div className="space-y-14">
+      <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
+        <TableIcon className="mr-2" />
+        Tables
+        {isPremium && state.user && (
+          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2">
+            <Crown className="w-4 h-4 mr-1" />
+            Premium
+          </span>
+        )}
+      </h1>
       
-      <section>
-        <div className={accordionHeaderStyles} onClick={() => setIsTablesOpen(o => !o)}>
-          <h2 className="text-lg font-semibold text-[#586D78]">Table Management</h2>
-          {isTablesOpen ? <ChevronUp /> : <ChevronDown />}
+      {/* Tables Section - Accordion */}
+      <div>
+        <div 
+          className={accordionHeaderStyles}
+          onClick={() => setIsTablesOpen(!isTablesOpen)}
+        >
+          <h2 className="text-lg font-semibold text-[#586D78] flex items-center">
+            <TableIcon className="mr-2 h-5 w-5" />
+            Tables
+          </h2>
+          {isTablesOpen ? <ChevronUp className="h-5 w-5 text-[#586D78]" /> : <ChevronDown className="h-5 w-5 text-[#586D78]" />}
         </div>
-        {isTablesOpen && <div className="mt-4"><Card>{/* Table CRUD UI */}</Card></div>}
-      </section>
 
-      <section>
-        <div className={accordionHeaderStyles} onClick={() => setIsAssignmentsOpen(o => !o)}>
-          <h2 className="text-lg font-semibold text-[#586D78] flex items-center"><MapPin className="mr-2 h-5 w-5" /> Guest Assignments</h2>
-          {isAssignmentsOpen ? <ChevronUp /> : <ChevronDown />}
+        {isTablesOpen && (
+          <div className="mt-4 space-y-4">
+            <Card>
+              <div className="flex justify-between items-start">
+                <div className="space-y-4 w-1/2">
+                  <p className="text-gray-700">
+                    Add, remove, and manage tables for your seating arrangement. Each table can have between 1 and 20 seats.
+                  </p>
+                  
+                  {isPremium && state.user && (
+                    <div className="bg-green-50 border border-green-300 rounded-md p-2 max-w-max">
+                      <p className="text-sm text-green-700 flex items-center whitespace-nowrap">
+                        <Crown className="w-4 h-4 mr-1 text-yellow-500" />
+                        Premium feature: Double-click to rename any table.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {!state.userSetTables && (
+                    <div className="bg-blue-50 border border-[#586D78] rounded-md p-3">
+                      <p className="text-sm text-[#586D78]">
+                        Tables are currently in auto-adjust mode. The number of tables will automatically increase based on your guest list.
+                        Any manual changes will switch to fixed table settings.
+                      </p>
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={handleAddTable}
+                    className="danstyle1c-btn"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add New Table
+                  </button>
+                </div>
+              </div>
+            </Card>
+            
+            <Card>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold text-[#586D78]">Tables ({state.tables.length})</h2>
+                <div className="text-[#586D78]">
+                  Total Seats: {totalSeats}
+                </div>
+              </div>
+              
+              {state.tables.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No tables added yet. Add a table to get started.</p>
+              ) : (
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {state.tables.map((table) => (
+                    <div 
+                      key={table.id} 
+                      className="bg-[#f9f9f9] rounded-lg p-3 border border-solid border-[#586D78] border-[1px] shadow-sm flex justify-between items-center"
+                    >
+                      <div className="flex-grow">
+                        {editingTableId === table.id ? (
+                          <div className="mb-2">
+                            <input
+                              type="text"
+                              value={editingName}
+                              onChange={handleTableNameChange}
+                              onBlur={handleTableNameBlur}
+                              onKeyDown={handleKeyDown}
+                              className={`px-3 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] w-full ${
+                                nameError ? 'border-red-300 bg-red-50' : 'border-[#586D78]'
+                              }`}
+                              autoFocus
+                            />
+                            {nameError && (
+                              <p className="text-red-600 text-xs mt-1">{nameError}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <div 
+                            className={`font-medium text-[#586D78] ${isPremium ? 'cursor-pointer' : ''}`}
+                            onDoubleClick={() => handleTableNameDoubleClick(table.id, table.name)}
+                            title={isPremium ? "Double-click to rename (Premium feature)" : ""}
+                          >
+                            {getTableDisplayName(table)}
+                            {isPremium && (
+                              <Edit2 className="w-3 h-3 ml-1 text-gray-400 inline-block" />
+                            )}
+                            <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded ml-2">
+                              #{table.id}
+                            </span>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center space-x-3 mt-2">
+                          <label htmlFor={`table-${table.id}-seats`} className="text-[#586D78]">
+                            Seats:
+                          </label>
+                          <input
+                            id={`table-${table.id}-seats`}
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={table.seats}
+                            onChange={(e) => handleUpdateSeats(table.id, e.target.value)}
+                            className="px-3 py-1 border border-[#586D78] rounded-md w-16 focus:outline-none focus:ring-2 focus:ring-[#586D78]"
+                          />
+                        </div>
+                      </div>
+                      
+                      <button
+                        className="danstyle1c-btn danstyle1c-remove h-10"
+                        onClick={() => handleRemoveTable(table.id)}
+                        aria-label="Remove table"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {/* Guest Assignments Section - Keep Current Implementation */}
+      <div>
+        <div 
+          className={accordionHeaderStyles}
+          onClick={() => setIsAssignmentsOpen(!isAssignmentsOpen)}
+        >
+          <h2 className="text-lg font-semibold text-[#586D78] flex items-center">
+            <MapPin className="mr-2 h-5 w-5" />
+            Guest Assignments
+          </h2>
+          {isAssignmentsOpen ? <ChevronUp className="h-5 w-5 text-[#586D78]" /> : <ChevronDown className="h-5 w-5 text-[#586D78]" />}
         </div>
+
         {isAssignmentsOpen && (
           <div className="mt-4 space-y-4">
-            <Card><div className="text-sm text-[#586D78] space-y-1">{/* Intro Copy */}</div></Card>
-            <div className="flex flex-wrap gap-2 items-center">{/* Sort Buttons */}</div>
+            <Card>
+              <div className="text-sm text-[#586D78] space-y-1">
+                <p>You can specify which tables each guest can be assigned to.</p>
+                <p>Simply, enter table numbers separated by commas, or leave blank for automatic assignment. Tip: You can assign a guest to a range of tables by entering comma-separated numbers (e.g., "1,3,5").</p>
+                <p>This means the seating algorithm will place them at one of these tables.</p>
+              </div>
+            </Card>
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-sm text-gray-600">Sort by:</span>
+              <button
+                onClick={() => setSortOption('as-entered')}
+                className={`px-3 py-1 text-sm rounded ${sortOption === 'as-entered' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                As Entered
+              </button>
+              <button
+                onClick={() => setSortOption('first-name')}
+                className={`px-3 py-1 text-sm rounded ${sortOption === 'first-name' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                First Name
+              </button>
+              <button
+                onClick={() => setSortOption('last-name')}
+                className={`px-3 py-1 text-sm rounded ${sortOption === 'last-name' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                Last Name
+              </button>
+              <button
+                onClick={() => setSortOption('current-table')}
+                className={`px-3 py-1 text-sm rounded ${sortOption === 'current-table' ? 'bg-[#586D78] text-white' : 'bg-gray-200 text-gray-700'}`}
+              >
+                Current Table
+              </button>
+            </div>
             <div className="space-y-4">
               {getSortedGuests().map(guest => {
                 const adjacent = state.adjacents[guest.name] ?? [];
@@ -246,9 +491,11 @@ const TableManager: React.FC = () => {
             </div>
           </div>
         )}
-      </section>
+      </div>
+      
       <SavedSettingsAccordion isDefaultOpen={false} />
     </div>
   );
 };
+
 export default TableManager;
