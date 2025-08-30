@@ -389,12 +389,35 @@ const ConstraintManager: React.FC = () => {
   // Constraint grid (preserved layout; switched internals to IDs)
   const constraintGrid = useMemo(() => {
     const guests = getSortedGuests();
-    const { constraints, adjacents } = state;
-
-    if (guests.length === 0) {
+    
+    // Validate constraint and adjacency state
+    if (!guests || guests.length === 0) {
       return (
         <div className="text-center py-8 text-gray-500">
           No guests added yet. Add guests to create constraints.
+        </div>
+      );
+    }
+
+    // Ensure constraints and adjacents are valid objects
+    const constraints = state.constraints || {};
+    const adjacents = state.adjacents || {};
+    
+    // Validate that constraints and adjacents are proper objects
+    if (typeof constraints !== 'object' || constraints === null || Array.isArray(constraints)) {
+      console.error('Invalid constraints state:', constraints);
+      return (
+        <div className="text-center py-8 text-red-500">
+          Error: Invalid constraint data structure.
+        </div>
+      );
+    }
+    
+    if (typeof adjacents !== 'object' || adjacents === null || Array.isArray(adjacents)) {
+      console.error('Invalid adjacents state:', adjacents);
+      return (
+        <div className="text-center py-8 text-red-500">
+          Error: Invalid adjacency data structure.
         </div>
       );
     }
@@ -518,16 +541,29 @@ const ConstraintManager: React.FC = () => {
           return;
         }
 
-        const constraintValue = state.constraints[g1.id]?.[g2.id] || '';
-        const isAdjacent =
-            (state.adjacents[g1.id] || []).includes(g2.id) ||
-            (state.adjacents[g2.id] || []).includes(g1.id);
+        // Safely get constraint value with validation
+        const constraintValue = constraints[g1.id]?.[g2.id];
+        const isValidConstraint = constraintValue === 'must' || constraintValue === 'cannot' || constraintValue === '';
+        
+        if (!isValidConstraint && constraintValue !== undefined) {
+          console.error('Invalid constraint value:', constraintValue, 'for guests:', g1.id, g2.id);
+        }
+        
+        const safeConstraintValue = isValidConstraint ? constraintValue : '';
+        
+        // Safely check adjacency with validation
+        const guest1Adjacents = adjacents[g1.id];
+        const guest2Adjacents = adjacents[g2.id];
+        
+        const isAdjacent = 
+          (Array.isArray(guest1Adjacents) && guest1Adjacents.includes(g2.id)) ||
+          (Array.isArray(guest2Adjacents) && guest2Adjacents.includes(g1.id));
 
         // Precedence: cannot > adjacency > must > empty
         let cellContent: React.ReactNode = null;
         let bgColor = '';
 
-        if (constraintValue === 'cannot') {
+        if (safeConstraintValue === 'cannot') {
           bgColor = 'bg-[#e6130b]';
           cellContent = <span className="text-black font-bold">X</span>;
         } else if (isAdjacent) {
@@ -543,7 +579,7 @@ const ConstraintManager: React.FC = () => {
               </span>
             </div>
           );
-        } else if (constraintValue === 'must') {
+        } else if (safeConstraintValue === 'must') {
           bgColor = 'bg-[#22cf04]';
           cellContent = <span className="text-black font-bold">&</span>;
         }
