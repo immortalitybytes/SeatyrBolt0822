@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, ChevronDown, ChevronUp, X, Download, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, ArrowDownAZ, ChevronDown, ChevronUp, X, Download, CheckCircle, AlertTriangle } from 'lucide-react';
 import Card from '../components/Card';
 import Button from '../components/Button';
 import { useApp } from '../context/AppContext';
@@ -7,14 +7,7 @@ import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
-
-interface ConstraintConflict {
-  id: string;
-  type: 'circular' | 'impossible' | 'capacity_violation' | 'adjacency_violation';
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  description: string;
-  affectedGuests: string[];
-}
+import { Guest, ConstraintConflict } from '../types';
 
 // Sort options
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
