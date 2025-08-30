@@ -765,35 +765,50 @@ const ConstraintManager: React.FC = () => {
     <div className="space-y-14">
       <h2 className="text-2xl font-semibold text-[#586D78] mb-0">Rules Management</h2>
 
-      <Card className="mb-0">
-        <div className="space-y-4">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-gray-700 text-[17px]">How to use constraints:</p>
-              <p className="text-gray-700 text-[17px]">Click a cell to cycle between constraints:</p>
-              <div className="flex items-center space-x-4 mt-2">
-                <div className="flex items-center space-x-2">
-                  <span className="inline-block w-3 h-3 bg-green-200 border"></span>
-                  <span className="text-sm">Must sit at the same table</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="inline-block w-3 h-3 bg-red-200 border"></span>
-                  <span className="text-sm">Cannot sit at the same table</span>
-                </div>
-              </div>
 
-              {/* Legend (preserved) */}
-              <details className="mt-4">
-                <summary className="cursor-pointer text-sm font-medium text-[#586D78]">Adjacent-Pairing</summary>
-                <div className="text-sm text-gray-700 mt-1">
-                  Double-click a guest name to select it<br />
-                  Click another guest and the adjacency will be set automatically<br />
-                  Guests with adjacent constraints are marked with ⭐
+
+      <Card>
+        <div className="space-y-14">
+          {/* Header with Hide/Show Conflicts button */}
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              {showConflicts && conflicts.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4" style={{ width: '60%' }}>
+                  <h3 className="flex items-center text-red-800 font-medium mb-2">
+                    <AlertTriangle className="w-4 h-4 mr-1" />
+                    Detected Conflicts ({conflicts.length})
+                  </h3>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {conflicts.map((conflict) => (
+                      <div key={conflict.id} className="text-sm">
+                        <p className="text-red-700">{conflict.description}</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {conflict.affectedGuests.map((idA, idx) => {
+                            if (idx < conflict.affectedGuests.length - 1) {
+                              const idB = conflict.affectedGuests[idx + 1];
+                              const aName = nameById.get(idA) || idA;
+                              const bName = nameById.get(idB) || idB;
+                              return (
+                                <button
+                                  key={`${idA}-${idB}`}
+                                  onClick={() => resolveConflict(idA, idB)}
+                                  className="text-xs text-indigo-600 hover:underline"
+                                >
+                                  Resolve ({aName} & {bName})
+                                </button>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </details>
+              )}
             </div>
             
-            {/* Show Conflicts/Hide Conflicts button moved here */}
+            {/* Hide/Show Conflicts button in upper right */}
             <button
               onClick={() => setShowConflicts((prev) => !prev)}
               className="danstyle1c-btn"
@@ -802,62 +817,8 @@ const ConstraintManager: React.FC = () => {
               {showConflicts ? 'Hide Conflicts' : 'Show Conflicts'}
             </button>
           </div>
-        </div>
-      </Card>
 
-      <Card>
-        <div className="space-y-14">
-          {showConflicts && conflicts.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <h3 className="flex items-center text-red-800 font-medium mb-2">
-                <AlertTriangle className="w-4 h-4 mr-1" />
-                Detected Conflicts ({conflicts.length})
-              </h3>
-              <div className="space-y-2 max-h-32 overflow-y-auto">
-                {conflicts.map((conflict) => (
-                  <div key={conflict.id} className="text-sm">
-                    <p className="text-red-700">{conflict.description}</p>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {conflict.affectedGuests.map((idA, idx) => {
-                        if (idx < conflict.affectedGuests.length - 1) {
-                          const idB = conflict.affectedGuests[idx + 1];
-                          const aName = nameById.get(idA) || idA;
-                          const bName = nameById.get(idB) || idB;
-                          return (
-                            <button
-                              key={`${idA}-${idB}`}
-                              onClick={() => resolveConflict(idA, idB)}
-                              className="text-xs text-indigo-600 hover:underline"
-                            >
-                              Resolve ({aName} & {bName})
-                            </button>
-                          );
-                        }
-                        return null;
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {smartSuggestions.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="flex items-center text-blue-800 font-medium mb-2">
-                <CheckCircle className="w-4 h-4 mr-1" />
-                Smart Suggestions
-              </h3>
-              <div className="space-y-2">
-                {smartSuggestions.map((suggestion, index) => (
-                  <div key={index} className="flex items-center space-x-2 text-blue-700 text-sm">
-                    <CheckCircle className="w-4 h-4 text-blue-500 flex-shrink-0" />
-                    <span>{suggestion}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="flex items-start space-x-4">
             <Info className="text-[#586D78] mt-1 flex-shrink-0" />
