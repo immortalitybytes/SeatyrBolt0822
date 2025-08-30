@@ -889,15 +889,17 @@ const GuestManager: React.FC = () => {
           {/* For First-Time Users Box - 40% width, same height as right box */}
           <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
             <h3 className="font-bold text-[#566F9B] mb-4" style={{ fontSize: '1.25em' }}>For First-Time Users</h3>
-            <div className="h-full flex flex-col justify-center">
-              <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
-                <p className="text-left">1.) Click "Load Test Guest List" button.</p>
-                <p className="text-left">2.) Click "Your Rules" at the top.</p>
-                <p className="text-left">3.) Pair and Prevent as you like.</p>
+            <div className="flex flex-col justify-between h-[400px]">
+              <div className="flex-1 flex flex-col justify-center">
+                <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
+                  <p className="text-left">1.) Click "Load Test Guest List" button.</p>
+                  <p className="text-left">2.) Click "Your Rules" at the top.</p>
+                  <p className="text-left">3.) Pair and Prevent as you like.</p>
+                </div>
               </div>
               
               {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
-              <div className="flex justify-end mt-4">
+              <div className="flex justify-end items-end">
                 <div 
                   className="pulsing-arrow"
                   style={{
@@ -913,8 +915,8 @@ const GuestManager: React.FC = () => {
           </div>
           
           {/* Enter Guest Names Box - 60% width, same height as left box */}
-          <div className="flex-1 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
-            <div className="flex flex-col h-full">
+          <div className="flex-1 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
+            <div className="flex flex-col">
               <div className="text-sm text-gray-500 mt-2 space-y-1">
                 <p>Enter guest names separated by commas or line breaks.</p>
                 <p>Connect couples and parties with an ampersand (&).</p>
