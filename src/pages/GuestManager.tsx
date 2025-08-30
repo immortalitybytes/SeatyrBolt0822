@@ -983,8 +983,8 @@ const GuestManager: React.FC = () => {
               <div className="mt-auto pt-4 flex space-x-2">
                 <button
                   onClick={loadTestGuestList}
-                  className="danstyle1c-btn inline-flex items-center justify-center flex-1"
-                  style={{ height: '70.2px' }}
+                  className="danstyle1c-btn inline-flex items-center justify-center"
+                  style={{ height: '70.2px', width: '60%' }}
                 >
                   Load Test Guest List
                 </button>
@@ -992,7 +992,7 @@ const GuestManager: React.FC = () => {
                 <button
                   onClick={handleAddGuests}
                   className="danstyle1c-btn inline-flex items-center justify-center"
-                  style={{ height: '70.2px' }}
+                  style={{ height: '70.2px', width: '40%' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
                   + Add
@@ -1092,7 +1092,7 @@ const GuestManager: React.FC = () => {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="danstyle1c-btn inline-flex items-center justify-center px-4"
-                  style={{ height: '70.2px' }}
+                  style={{ height: '70.2px', width: '60%' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -1101,7 +1101,7 @@ const GuestManager: React.FC = () => {
                 <button
                   onClick={handleAddGuests}
                   className="danstyle1c-btn inline-flex items-center justify-center px-4"
-                  style={{ height: '70.2px' }}
+                  style={{ height: '70.2px', width: '40%' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
                   + Add
