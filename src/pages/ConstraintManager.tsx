@@ -779,21 +779,41 @@ const ConstraintManager: React.FC = () => {
       <h2 className="text-2xl font-semibold text-[#586D78] mb-0">Rules Management</h2>
 
       <Card className="mb-0">
-        <div className="space-y-14">
-          <div>
-            <p className="text-gray-700 text-[17px]">Enter guest names separated by commas or line breaks.</p>
-            <p className="text-gray-700 text-[17px]">Connect couples and parties with an ampersand (&).</p>
-
-            {/* Legend (preserved) */}
-            <details className="mt-2">
-              <summary className="cursor-pointer text-sm font-medium text-[#586D78]">Adjacent-Pairing</summary>
-              <div className="text-sm text-gray-700 mt-1">
-                To set "Adjacent Seating" (guests sit right next to each other):<br />
-                Double-click a guest name to select it<br />
-                Click another guest and the adjacency will be set automatically<br />
-                Guests with adjacent constraints are marked with ⭐
+        <div className="space-y-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-gray-700 text-[17px]">How to use constraints:</p>
+              <p className="text-gray-700 text-[17px]">Click a cell to cycle between constraints:</p>
+              <div className="flex items-center space-x-4 mt-2">
+                <div className="flex items-center space-x-2">
+                  <span className="inline-block w-3 h-3 bg-green-200 border"></span>
+                  <span className="text-sm">Must sit at the same table</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="inline-block w-3 h-3 bg-red-200 border"></span>
+                  <span className="text-sm">Cannot sit at the same table</span>
+                </div>
               </div>
-            </details>
+
+              {/* Legend (preserved) */}
+              <details className="mt-4">
+                <summary className="cursor-pointer text-sm font-medium text-[#586D78]">Adjacent-Pairing</summary>
+                <div className="text-sm text-gray-700 mt-1">
+                  Double-click a guest name to select it<br />
+                  Click another guest and the adjacency will be set automatically<br />
+                  Guests with adjacent constraints are marked with ⭐
+                </div>
+              </details>
+            </div>
+            
+            {/* Show Conflicts/Hide Conflicts button moved here */}
+            <button
+              onClick={() => setShowConflicts((prev) => !prev)}
+              className="danstyle1c-btn"
+              title={showConflicts ? 'Hide conflicts' : 'Show conflicts'}
+            >
+              {showConflicts ? 'Hide Conflicts' : 'Show Conflicts'}
+            </button>
           </div>
         </div>
       </Card>
@@ -942,20 +962,14 @@ const ConstraintManager: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
 
-            <div className="flex space-x-2">
-              <button onClick={exportJSON} className="danstyle1c-btn" title="Export constraints as JSON">
-                <Download className="w-4 h-4 mr-1" />
-                Export
-              </button>
-              <button
-                onClick={() => setShowConflicts((prev) => !prev)}
-                className="danstyle1c-btn"
-                title={showConflicts ? 'Hide conflicts' : 'Show conflicts'}
-              >
-                {showConflicts ? 'Hide Conflicts' : 'Show Conflicts'}
-              </button>
-            </div>
+          {/* Export button moved to top-right */}
+          <div className="flex items-center">
+            <button onClick={exportJSON} className="danstyle1c-btn" title="Export constraints as JSON">
+              <Download className="w-4 h-4 mr-1" />
+              Export
+            </button>
           </div>
 
           {/* Navigation buttons above the grid - only shown for 120+ guests (preserved) */}
