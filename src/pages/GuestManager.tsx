@@ -638,56 +638,6 @@ const GuestManager: React.FC = () => {
     setShowDuplicateWarning(false);
   };
 
-  const loadTestGuestList = () => {
-    const testList = "Michael & Enid Lawrence, Sarah & Rachel & Billy Williams, David Chen & Jessica Brown, Christopher Davis, Ashley Miller & Plus One, Matthew Wilson & Amanda Moore, Joshua Taylor & Guest, Jennifer& Andrew &Thomas Bhasin, Elizabeth Jackson, Daniel White, Emily Harris and James Martin, Li Thompson, Robert Garcia, Nicole Martinez, John Jose Rodriguez, Stephanie Lewis, William Lee & Rachel Walker, Thomas Hall and Lauren Allen & Kid1 & Kid2, Richard Bryan %Marx Young, Samantha King+2, Charles Wright, Michelle Lopez, Joseph Scott, Kimberly Green, Mark Adams, Lisa Baker, Steven Gonzalez";
-    const testGuests = parseGuestInput(testList);
-    
-    const isPremium = isPremiumSubscription(state.subscription);
-    const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
-    
-    // Calculate total guests (current + new)
-    const totalGuestCount = testGuests.reduce((sum, g) => sum + g.count, 0);
-    const currentGuestCount = state.guests.reduce((sum, g) => sum + g.count, 0);
-    
-    // Check if adding these guests would exceed the limit
-    if (currentGuestCount + totalGuestCount > maxGuestLimit && !isPremium) {
-      setShowLimitWarning(true);
-      return;
-    }
-    
-    // Check for duplicates
-    const currentGuestNames = state.guests.map(g => g.name.toLowerCase());
-    const newDuplicates: string[] = [];
-    const uniqueGuests = [];
-    
-    for (const guest of testGuests) {
-      if (currentGuestNames.includes(guest.name.toLowerCase())) {
-        newDuplicates.push(guest.name);
-      } else {
-        uniqueGuests.push(guest);
-      }
-    }
-    
-    if (newDuplicates.length > 0) {
-      setLocalDuplicateGuests(newDuplicates);
-      dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: newDuplicates });
-      setShowDuplicateWarning(true);
-    } else {
-      setLocalDuplicateGuests([]);
-      dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
-      setShowDuplicateWarning(false);
-    }
-    
-    if (uniqueGuests.length > 0) {
-      dispatch({ type: 'ADD_GUESTS', payload: uniqueGuests });
-      
-      // Purge seating plans
-      purgeSeatingPlans();
-    } else if (newDuplicates.length > 0) {
-      setImportError('All test guests are duplicates of existing guests.');
-    }
-  };
-
   const handleUpgrade = async () => {
     if (!state.user) {
       setShowAuthModal(true);
@@ -915,7 +865,7 @@ const GuestManager: React.FC = () => {
             <h3 className="font-bold text-[#566F9B] mb-4" style={{ fontSize: '1.25em' }}>For First-Time Users</h3>
             <div className="h-full flex flex-col justify-center text-left">
               <div className="space-y-3 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.5' }}>
-                <p>1.) Click "Load Test Guest List" button.</p>
+                <p>1.) Enter guest names in the box to the right.</p>
                 <p>2.) Click "Your Rules" at the top.</p>
                 <p>3.) Pair and Prevent as you like.</p>
               </div>

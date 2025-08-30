@@ -51,58 +51,6 @@ export const FormatGuestName: React.FC<FormatGuestNameProps> = ({ name, classNam
 };
 
 /**
- * Format guest name for seat display with party member highlighting.
- * Used in SeatingPlanViewer to highlight specific party members.
- */
-interface FormatSeatNameProps {
-  name: string;
-  partyIndex: number;
-  className?: string;
-}
-
-export const FormatSeatName: React.FC<FormatSeatNameProps> = ({ 
-  name, 
-  partyIndex, 
-  className = '' 
-}) => {
-  if (!name) return <span className={className}>Empty</span>;
-  
-  // Handle party member highlighting for names with connectors
-  const parts = name.split(/((?:\s*(?:&|\+|and|plus)\s*)+)/i);
-  
-  if (parts.length === 1) {
-    // Single guest - always bold if partyIndex 0
-    return (
-      <span className={className}>
-        {partyIndex === 0 ? <strong>{name}</strong> : name}
-      </span>
-    );
-  }
-  
-  // Multiple party members - highlight the one at partyIndex
-  let memberIndex = 0;
-  
-  return (
-    <span className={className}>
-      {parts.map((part, index) => {
-        // Check if this part is a delimiter (connector)
-        if (/(?:\s*(?:&|\+|and|plus)\s*)+/i.test(part)) {
-          return <span key={index}>{part}</span>;
-        }
-        
-        // This is a name part
-        const isTargetMember = memberIndex === partyIndex;
-        memberIndex++;
-        
-        return isTargetMember ? 
-          <strong key={index}>{part}</strong> : 
-          <span key={index}>{part}</span>;
-      })}
-    </span>
-  );
-};
-
-/**
  * Format constraint display with icons and colors.
  */
 interface FormatConstraintProps {
@@ -118,7 +66,7 @@ export const FormatConstraint: React.FC<FormatConstraintProps> = ({
 }) => {
   const getIcon = () => {
     switch (type) {
-      case 'must': return '&'; // Changed from ✓ to & for consistency
+      case 'must': return '&'; // Using ampersand as requested
       case 'cannot': return '✕';
       case 'adjacent': return '⭐';
       default: return '';
