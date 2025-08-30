@@ -820,55 +820,41 @@ const ConstraintManager: React.FC = () => {
 
 
 
-          <div className="flex items-start space-x-4">
-            <Info className="text-[#586D78] mt-1 flex-shrink-0" />
-            <div>
-              <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
-              <ul className="list-disc pl-5 space-y-14 text-gray-600 text-[17px] mt-2">
-                <li>
-                  Click a cell to cycle between constraints:
-                  <div className="mt-1 flex space-x-4">
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-[#22cf04] border border-[#586D78] mr-1"></span>
-                      Must sit at the same table
-                    </span>
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-[#e6130b] border border-[#586D78] mr-1"></span>
-                      Cannot sit at the same table
-                    </span>
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-white border border-[#586D78] mr-1"></span>
-                      No constraint
-                    </span>
-                  </div>
-                </li>
-                <li>
-                  To set "Adjacent Seating" (guests sit right next to each other):
-                  <ol className="list-decimal pl-5 mt-1">
-                    <li>{isTouchDevice ? 'Long-press' : 'Double-click'} a guest name to select it</li>
-                    <li>Click another guest and the adjacency will be set automatically</li>
-                  </ol>
-                </li>
-                <li>
-                  Guests with adjacent constraints are marked with{' '}
-                  <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>
-                    ⭐
+          <div className="space-y-4">
+            <h3 className="text-2xl font-semibold text-[#586D78] mb-0">How to use constraints:</h3>
+            
+            <ul className="list-disc pl-5 space-y-4 text-gray-600 text-[17px]">
+              <li>
+                Click a cell to cycle between constraints:
+                <div className="mt-1 flex space-x-4">
+                  <span className="flex items-center">
+                    <span className="inline-block w-3 h-3 bg-[#22cf04] border border-[#586D78] mr-1"></span>
+                    Must sit at the same table
                   </span>
-                </li>
-              </ul>
-            </div>
+                  <span className="flex items-center">
+                    <span className="inline-block w-3 h-3 bg-[#e6130b] border border-[#586D78] mr-1"></span>
+                    Cannot sit at the same table
+                  </span>
+                  <span className="flex items-center">
+                    <span className="inline-block w-3 h-3 bg-white border border-[#586D78] mr-1"></span>
+                    No constraint
+                  </span>
+                </div>
+              </li>
+              
+              <li>
+                {/* Adjacent-Pairing Accordion repositioned here */}
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-sm font-medium text-[#586D78]">To set "Adjacent Seating" (guests sit right next to each other):</summary>
+                  <div className="mt-2 text-sm text-[#586D78] space-y-1">
+                    <p>Double-click a guest name to select it.</p>
+                    <p>Click another guest and the adjacency will be set automatically.</p>
+                    <p>Guests with adjacent constraints are marked with ⭐ (star emoji).</p>
+                  </div>
+                </details>
+              </li>
+            </ul>
           </div>
-
-          {/* Adjacent-Pairing Accordion (preserved) */}
-          <details className="mt-2">
-            <summary className="cursor-pointer text-sm font-medium text-[#586D78]">Adjacent-Pairing</summary>
-            <div className="mt-2 text-sm text-[#586D78] space-y-1">
-              <p>To set "Adjacent Seating" (guests sit right next to each other):</p>
-              <p>Double-click a guest name to select it.</p>
-              <p>Click another guest and the adjacency will be set automatically.</p>
-              <p>Guests with adjacent constraints are marked with ⭐ (star emoji).</p>
-            </div>
-          </details>
         </div>
       </Card>
 
