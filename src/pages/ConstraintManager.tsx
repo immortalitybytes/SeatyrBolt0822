@@ -541,29 +541,16 @@ const ConstraintManager: React.FC = () => {
           return;
         }
 
-        // Safely get constraint value with validation
-        const constraintValue = constraints[g1.id]?.[g2.id];
-        const isValidConstraint = constraintValue === 'must' || constraintValue === 'cannot' || constraintValue === '';
-        
-        if (!isValidConstraint && constraintValue !== undefined) {
-          console.error('Invalid constraint value:', constraintValue, 'for guests:', g1.id, g2.id);
-        }
-        
-        const safeConstraintValue = isValidConstraint ? constraintValue : '';
-        
-        // Safely check adjacency with validation
-        const guest1Adjacents = adjacents[g1.id];
-        const guest2Adjacents = adjacents[g2.id];
-        
-        const isAdjacent = 
-          (Array.isArray(guest1Adjacents) && guest1Adjacents.includes(g2.id)) ||
-          (Array.isArray(guest2Adjacents) && guest2Adjacents.includes(g1.id));
+        const constraintValue = state.constraints[g1.id]?.[g2.id] || '';
+        const isAdjacent =
+            (state.adjacents[g1.id] || []).includes(g2.id) ||
+            (state.adjacents[g2.id] || []).includes(g1.id);
 
         // Precedence: cannot > adjacency > must > empty
         let cellContent: React.ReactNode = null;
         let bgColor = '';
 
-        if (safeConstraintValue === 'cannot') {
+        if (constraintValue === 'cannot') {
           bgColor = 'bg-[#e6130b]';
           cellContent = <span className="text-black font-bold">X</span>;
         } else if (isAdjacent) {
@@ -579,7 +566,7 @@ const ConstraintManager: React.FC = () => {
               </span>
             </div>
           );
-        } else if (safeConstraintValue === 'must') {
+        } else if (constraintValue === 'must') {
           bgColor = 'bg-[#22cf04]';
           cellContent = <span className="text-black font-bold">&</span>;
         }
