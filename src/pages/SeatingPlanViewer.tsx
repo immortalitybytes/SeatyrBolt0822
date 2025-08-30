@@ -10,8 +10,7 @@ import { isPremiumSubscription } from '../utils/premium';
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
     
-    // Improved regex: split only on connectors, preserving complete names
-    // This ensures "David Chen & Jessica Brown" becomes ["David Chen", " & ", "Jessica Brown"]
+    // Show the ENTIRE GuestUnit content with bolding for the specific seat
     const parts = rawName.split(/(\s*(?:&|\+|and|plus)\s*)/i);
     const finalTokens: (string | { type: 'delimiter'; value: string })[] = [];
   
@@ -87,6 +86,25 @@ const SeatingPlanViewer: React.FC = () => {
   const isPremium = isPremiumSubscription(state.subscription);
 
   const plan = state.seatingPlans[state.currentPlanIndex] ?? null;
+
+  // Auto-generate seating plan if none exists
+  useEffect(() => {
+    if (state.seatingPlans.length === 0 && state.guests.length > 0 && state.tables.length > 0) {
+      setIsGenerating(true);
+      generateSeatingPlans(state.guests, state.tables, state.constraints, state.adjacents, {}, isPremium)
+        .then(result => {
+          if (result.plans.length > 0) {
+            dispatch({ type: 'SET_SEATING_PLANS', payload: result.plans });
+          }
+        })
+        .catch(error => {
+          console.error('Auto-generation failed:', error);
+        })
+        .finally(() => {
+          setIsGenerating(false);
+        });
+    }
+  }, [state.guests, state.tables, state.constraints, state.adjacents, state.seatingPlans.length, isPremium, dispatch]);
 
   const capacityById = useMemo(() => {
     const map = new Map<number, number>();

@@ -49,6 +49,7 @@ const ConstraintChipsInput: React.FC<{
 
   const chipClass = tone === 'must' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
   const placeholderText = `Type to add "${tone} sit with"...`;
+  const inputBorderClass = tone === 'must' ? 'border-green-300' : 'border-red-300';
 
   return (
     <div className="relative">
@@ -72,7 +73,7 @@ const ConstraintChipsInput: React.FC<{
         }}
         role="combobox"
         aria-expanded={activeFieldKey === inputKey && suggestions.length > 0}
-        className="w-full border rounded px-2 py-1 text-sm"
+        className={`w-full border-2 ${inputBorderClass} rounded px-2 py-1 text-sm`}
         placeholder={placeholderText}
       />
       {activeFieldKey === inputKey && suggestions.length > 0 && (
@@ -91,7 +92,10 @@ const TableManager: React.FC = () => {
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
-  const [isTablesOpen, setIsTablesOpen] = useState(true);
+  const [isTablesOpen, setIsTablesOpen] = useState(() => {
+    // Default: open for non-signed users, closed for signed users
+    return !state.user;
+  });
   const [isAssignmentsOpen, setIsAssignmentsOpen] = useState(true);
   const [sortOption, setSortOption] = useState<'as-entered' | 'first-name' | 'last-name' | 'current-table'>('as-entered');
   const [activeFieldKey, setActiveFieldKey] = useState<string | null>(null);
@@ -471,7 +475,7 @@ const TableManager: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Table Assignment</label>
-                          <input type="text" value={state.assignments[guest.name] || ''} onChange={e => handleUpdateAssignment(guest.name, e.target.value)} className="w-full border rounded px-2 py-1 text-sm" placeholder="e.g., 1, 3, 5" />
+                          <input type="text" value={state.assignments[guest.name] || ''} onChange={e => handleUpdateAssignment(guest.name, e.target.value)} className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" placeholder="e.g., 1, 3, 5" />
                           {state.tables.length > 0 && <p className="text-xs text-gray-500 mt-1">Available: {getTableList()}</p>}
                         </div>
                         <div>
