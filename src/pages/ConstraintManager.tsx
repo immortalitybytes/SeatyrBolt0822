@@ -700,39 +700,7 @@ const ConstraintManager: React.FC = () => {
           </div>
         )}
 
-        {needsPagination && (
-          <div
-            className={`border border-[#586D78] rounded-md transition-all ${
-              isWarningExpanded ? 'bg-amber-50 p-4' : 'bg-amber-50/50 px-4 py-2'
-            }`}
-          >
-            <div className="flex justify-between items-center">
-              <div className="flex items-center">
-                {isWarningExpanded ? <AlertCircle className="text-amber-500 mr-2 flex-shrink-0" /> : null}
-                <p className={`text-sm ${isWarningExpanded ? 'text-amber-800' : 'text-amber-600'}`}>
-                  {isWarningExpanded ? 'Large Guest List Detected' : 'Large Guest List Pagination'}
-                </p>
-              </div>
-              <div className="flex items-center">
-                {isWarningExpanded ? (
-                  <button onClick={handleToggleWarning} className="text-amber-600 hover:text-amber-800" aria-label="Collapse warning">
-                    <X className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <button onClick={handleToggleWarning} className="text-amber-600 hover:text-amber-800" aria-label="Expand warning">
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-            {isWarningExpanded && (
-              <div className="mt-2 text-sm text-amber-800">
-                <p>To improve performance, the constraint grid shows 10 columns at a time.</p>
-                <p>Scroll vertically and use the navigation buttons below to see all guests.</p>
-              </div>
-            )}
-          </div>
-        )}
+
 
         <div className="overflow-auto max-h-[60vh] border border-[#586D78] rounded-md relative">
           <table className="w-full border-collapse bg-white">
@@ -808,20 +776,22 @@ const ConstraintManager: React.FC = () => {
               )}
             </div>
             
-            {/* Hide/Show Conflicts button in upper right */}
-            <button
-              onClick={() => setShowConflicts((prev) => !prev)}
-              className="danstyle1c-btn"
-              title={showConflicts ? 'Hide conflicts' : 'Show conflicts'}
-            >
-              {showConflicts ? 'Hide Conflicts' : 'Show Conflicts'}
-            </button>
+            {/* Hide/Show Conflicts button in upper right - only show when conflicts exist */}
+            {conflicts.length > 0 && (
+              <button
+                onClick={() => setShowConflicts((prev) => !prev)}
+                className="danstyle1c-btn"
+                title={showConflicts ? 'Hide conflicts' : 'Show conflicts'}
+              >
+                {showConflicts ? 'Hide Conflicts' : 'Show Conflicts'}
+              </button>
+            )}
           </div>
 
 
 
           <div className="space-y-4">
-            <h3 className="text-2xl font-semibold text-[#586D78] mb-0">How to use constraints:</h3>
+            <h3 className="text-lg font-semibold text-[#586D78] mb-0">How to use constraints:</h3>
             
             <ul className="list-disc pl-5 space-y-4 text-gray-600 text-[17px]">
               <li>

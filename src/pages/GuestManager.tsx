@@ -887,9 +887,9 @@ const GuestManager: React.FC = () => {
         /* LAYOUT #1: Non-signed users (first-time visitors) */
         <div className="flex items-stretch gap-6">
           {/* For First-Time Users Box - 40% width, same height as right box */}
-          <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2 h-full">
-            <h3 className="font-bold text-[#566F9B] mb-4" style={{ fontSize: '1.25em' }}>For First-Time Users</h3>
-            <div className="flex flex-col justify-between h-[400px]">
+          <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
+            <h3 className="font-bold text-[#566F9B] mb-3" style={{ fontSize: '1.25em' }}>For First-Time Users:</h3>
+            <div className="flex flex-col justify-between h-[320px]">
               <div className="flex-1 flex flex-col justify-center">
                 <div className="space-y-2 text-sm text-[#586D78] pr-1" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
                   <p className="text-left">1.) Click "Load Test Guest List" button.</p>
@@ -899,7 +899,7 @@ const GuestManager: React.FC = () => {
               </div>
               
               {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
-              <div className="flex justify-end items-end">
+              <div className="flex justify-end items-center">
                 <div 
                   className="pulsing-arrow"
                   style={{
@@ -916,7 +916,7 @@ const GuestManager: React.FC = () => {
           
           {/* Enter Guest Names Box - 60% width, same height as left box */}
           <div className="flex-1 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
-            <div className="flex flex-col">
+            <div className="flex flex-col h-[320px]">
               <div className="text-sm text-gray-500 mt-2 space-y-1">
                 <p>Enter guest names separated by commas or line breaks.</p>
                 <p>Connect couples and parties with an ampersand (&).</p>
@@ -943,8 +943,8 @@ const GuestManager: React.FC = () => {
                   }
                 }}
                 placeholder="e.g., Alice, Bob&#13;&#10;Carol & David"
-                className="w-full px-3 py-2 border border-[#586D78] border-[1.5px] rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] min-h-[100px] mt-2"
-                rows={4}
+                className="w-full px-3 py-2 border border-[#586D78] border-[1.5px] rounded-md focus:outline-none focus:ring-2 focus:ring-[#586D78] min-h-[80px] mt-2"
+                rows={3}
                 onKeyDown={(e) => e.key === 'Enter' && e.ctrlKey && handleAddGuests()}
               />
               
@@ -980,7 +980,7 @@ const GuestManager: React.FC = () => {
               )}
               
               {/* Buttons - Load Test Guest List and + Add for non-signed users */}
-              <div className="mt-auto pt-4 flex space-x-2">
+              <div className="mt-auto pt-2 flex space-x-2">
                 <button
                   onClick={loadTestGuestList}
                   className="danstyle1c-btn inline-flex items-center justify-center"
@@ -1092,7 +1092,7 @@ const GuestManager: React.FC = () => {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="danstyle1c-btn inline-flex items-center justify-center px-4"
-                  style={{ height: '70.2px', width: '60%' }}
+                  style={{ height: '70.2px', width: '36%' }}
                 >
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Guests & Settings
@@ -1101,7 +1101,7 @@ const GuestManager: React.FC = () => {
                 <button
                   onClick={handleAddGuests}
                   className="danstyle1c-btn inline-flex items-center justify-center px-4"
-                  style={{ height: '70.2px', width: '40%' }}
+                  style={{ height: '70.2px', width: '24%' }}
                   disabled={!isPremium && state.guests.length >= maxGuestLimit}
                 >
                   + Add
