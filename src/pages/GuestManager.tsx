@@ -124,26 +124,26 @@ const GuestManager: React.FC = () => {
       setVideoVisible(savedPreference === 'true');
     } else {
       // No saved preference, use default based on login status
-      if (userIsLoggedIn) {
-        // For logged in users: default to collapsed
-        setVideoVisible(false);
+    if (userIsLoggedIn) {
+      // For logged in users: default to collapsed
+      setVideoVisible(false);
         localStorage.setItem('seatyr_video_visible', 'false');
-      } else {
-        // For non-logged in users: default to expanded with autoplay
-        setVideoVisible(true);
+    } else {
+      // For non-logged in users: default to expanded with autoplay
+      setVideoVisible(true);
         localStorage.setItem('seatyr_video_visible', 'true');
-        
-        // If there's a video reference and it's now visible, update src for autoplay
-        if (videoRef.current) {
-          const iframe = videoRef.current;
-          const currentSrc = iframe.src;
-          if (currentSrc.includes('autoplay=0')) {
-            iframe.src = currentSrc.replace('autoplay=0', 'autoplay=1');
-          } else if (!currentSrc.includes('autoplay=1')) {
-            iframe.src = currentSrc + (currentSrc.includes('?') ? '&' : '?') + 'autoplay=1';
-          }
+      
+      // If there's a video reference and it's now visible, update src for autoplay
+      if (videoRef.current) {
+        const iframe = videoRef.current;
+        const currentSrc = iframe.src;
+        if (currentSrc.includes('autoplay=0')) {
+          iframe.src = currentSrc.replace('autoplay=0', 'autoplay=1');
+        } else if (!currentSrc.includes('autoplay=1')) {
+          iframe.src = currentSrc + (currentSrc.includes('?') ? '&' : '?') + 'autoplay=1';
         }
       }
+    }
     }
   }, [state.user]);
 
@@ -842,7 +842,7 @@ const GuestManager: React.FC = () => {
     return seatCount;
   };
 
-    return (
+  return (
     <div className="space-y-14">
       {/* Video Section with Collapse/Expand - Full width */}
       <div className="w-full bg-white rounded-lg shadow-md overflow-hidden">
@@ -895,7 +895,7 @@ const GuestManager: React.FC = () => {
         /* LAYOUT #1: Non-signed users (first-time visitors) */
         <div className="flex items-stretch gap-6">
           {/* For First-Time Users Box - 40% width, same height as right box */}
-          <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
+        <div className="w-[40%] flex-shrink-0 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
 
             <div className="flex flex-col justify-between h-[256px]">
               {/* 4-line text block: heading + 3 points - right-justified and middle-aligned */}
@@ -903,26 +903,26 @@ const GuestManager: React.FC = () => {
                 <div className="text-right pr-4">
                   <h3 className="font-bold text-[#566F9B] mb-2" style={{ fontSize: '1.25em' }}>For First-Time Users:</h3>
                   <div className="space-y-2 text-sm text-[#566F9B]" style={{ fontSize: '1.25em', lineHeight: '1.8' }}>
-                    <p>1.) Click "Load Test Guest List" button.</p>
-                    <p>2.) Click "Your Rules" at the top.</p>
+            <p>1.) Click "Load Test Guest List" button.</p>
+            <p>2.) Click "Your Rules" at the top.</p>
                     <p>3.) Pair and Prevent as you like.</p>
                   </div>
                 </div>
-              </div>
-              
+          </div>
+          
               {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
               <div className="flex justify-end items-center">
-                <div 
-                  className="pulsing-arrow"
-                  style={{
-                    fontSize: '36pt',
-                    animation: 'pulseAndColor 2s ease-in-out infinite',
-                    animationIterationCount: 5
-                  }}
-                >
-                  ➡️
-                </div>
+              <div 
+                className="pulsing-arrow"
+                style={{
+                  fontSize: '36pt',
+                  animation: 'pulseAndColor 2s ease-in-out infinite',
+                  animationIterationCount: 5
+                }}
+              >
+                ➡️
               </div>
+            </div>
             </div>
           </div>
           
@@ -940,9 +940,9 @@ const GuestManager: React.FC = () => {
                     const totalSeats = (state.guests ?? []).reduce((s,g)=> s + Math.max(1, g.count ?? 1), 0);
                     return totalSeats;
                   })()}/80 guests used</p>
-                )}
-              </div>
-              
+          )}
+        </div>
+        
               <textarea
                 value={guestInput}
                 onChange={(e) => {
@@ -1031,7 +1031,7 @@ const GuestManager: React.FC = () => {
                         <p className="text-sm text-[#586D78]" style={{ fontSize: '0.7em' }}>Free plan: {totalSeats}/80 guests used</p>
                       );
                     })()}
-                  </div>
+                </div>
                 )}
                 
                 {isPremium && state.user && (
@@ -1321,11 +1321,11 @@ const GuestManager: React.FC = () => {
                         {(() => {
                           const displayName = getDisplayName(guest.name);
                           return displayName.includes('%') ? (
-                            <>
+                          <>
                               {displayName.split('%')[0]}
-                              <span style={{ color: '#959595' }}>%</span>
+                            <span style={{ color: '#959595' }}>%</span>
                               {displayName.split('%')[1]}
-                            </>
+                          </>
                           ) : displayName;
                         })()}
                         <Edit2 className="w-3 h-3 ml-1 text-gray-400 cursor-pointer" 

@@ -330,49 +330,23 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
 
     case 'SET_CONSTRAINT': {
-      const { guest1, guest2, value } = action.payload || {};
-      
-      // Lightweight validation (no UI changes)
-      if (!guest1 || !guest2 || guest1 === guest2 || !['', 'must', 'cannot'].includes(value)) {
-        console.error('Invalid SET_CONSTRAINT payload, skipping update');
-        return state;
+      const { guest1, guest2, value } = action?.payload || {};
+      if (!guest1 || !guest2 || guest1 === guest2) return state;
+      if (!['', 'must', 'cannot'].includes(value)) return state;
+
+      const next = { ...state.constraints };
+
+      if (value === '') {
+        if (next[guest1]) { delete next[guest1][guest2]; if (!Object.keys(next[guest1]).length) delete next[guest1]; }
+        if (next[guest2]) { delete next[guest2][guest1]; if (!Object.keys(next[guest2]).length) delete next[guest2]; }
+      } else {
+        next[guest1] = { ...(next[guest1] || {}), [guest2]: value };
+        next[guest2] = { ...(next[guest2] || {}), [guest1]: value };
       }
-      
-      const newConstraints = { ...state.constraints };
-
-      if (!newConstraints[guest1]) newConstraints[guest1] = {};
-      if (!newConstraints[guest2]) newConstraints[guest2] = {};
-
-      // If a 'must' constraint is being removed, check if an adjacency exists
-      // and remove it to maintain consistent state
-      if (value !== 'must') {
-        const currentAdjacents1 = state.adjacents[guest1] || [];
-        const currentAdjacents2 = state.adjacents[guest2] || [];
-        
-        if (currentAdjacents1.includes(guest2) || currentAdjacents2.includes(guest1)) {
-          // Remove the adjacency to maintain consistency
-          const newAdjacents = { ...state.adjacents };
-          newAdjacents[guest1] = (newAdjacents[guest1] || []).filter(g => g !== guest2);
-          newAdjacents[guest2] = (newAdjacents[guest2] || []).filter(g => g !== guest1);
-          
-          // Update both constraints and adjacents
-          newConstraints[guest1][guest2] = value;
-          newConstraints[guest2][guest1] = value;
-          
-          return {
-            ...state,
-            constraints: newConstraints,
-            adjacents: newAdjacents,
-          };
-        }
-      }
-
-      newConstraints[guest1][guest2] = value;
-      newConstraints[guest2][guest1] = value;
 
       newState = {
         ...state,
-        constraints: newConstraints,
+        constraints: next,
       };
       break;
     }

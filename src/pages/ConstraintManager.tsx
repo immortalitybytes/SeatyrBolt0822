@@ -51,6 +51,107 @@ function useDebouncedCallback<T extends (...args: any[]) => any>(callback: T, de
   );
 }
 
+// ===== P-0: Just-in-Time Normalization (IDs) =====
+// Purpose: Feed conflict detection a clean, ID-keyed, symmetric view –
+// without refactoring state or UI. Safe with mixed keyspaces, dup names,
+// stale/ghost keys, and varying adjacency shapes.
+
+type ConstraintVal = '' | 'must' | 'cannot';
+
+function buildNameLookup(guests: Array<{ id: string; name: string }>) {
+  const nameToIds = new Map<string, string[]>();
+  const idSet = new Set<string>();
+  for (const g of guests) {
+    idSet.add(g.id);
+    if (!nameToIds.has(g.name)) nameToIds.set(g.name, []);
+    nameToIds.get(g.name)!.push(g.id);
+  }
+  const singleNameToId = new Map<string, string>();
+  for (const [name, ids] of nameToIds) if (ids.length === 1) singleNameToId.set(name, ids[0]);
+  return { idSet, nameToIds, singleNameToId };
+}
+
+// Map possibly-mixed keys (name or id) → array of concrete IDs.
+// Ambiguous duplicate names return [] so we *skip* those rules safely.
+function keysToIds(
+  key: string,
+  idSet: Set<string>,
+  nameToIds: Map<string, string[]>,
+  singleNameToId: Map<string, string>
+): string[] {
+  if (idSet.has(key)) return [key];                    // Already an ID
+  if (singleNameToId.has(key)) return [singleNameToId.get(key)!]; // Unique name
+  const dup = nameToIds.get(key);
+  if (dup && dup.length > 1) return [];                // Ambiguous – skip
+  return [];                                           // Ghost/unknown – skip
+}
+
+// Accepts either { [k: string]: 'must'|'cannot'|'' } row objects
+// or undefined; enforces symmetry; prunes invalid/self/ghost keys.
+function normalizeConstraintsToIds(
+  raw: Record<string, Record<string, ConstraintVal> | undefined>,
+  idSet: Set<string>,
+  nameToIds: Map<string, string[]>,
+  singleNameToId: Map<string, string>
+) {
+  const out: Record<string, Record<string, 'must' | 'cannot'>> = {};
+  for (const [k1, row] of Object.entries(raw || {})) {
+    const ids1 = keysToIds(k1, idSet, nameToIds, singleNameToId);
+    if (ids1.length === 0) continue; // ghost or ambiguous name
+    for (const [k2, v] of Object.entries(row || {})) {
+      if (v !== 'must' && v !== 'cannot') continue;
+      const ids2 = keysToIds(k2, idSet, nameToIds, singleNameToId);
+      if (ids2.length === 0) continue;
+      for (const i1 of ids1) for (const i2 of ids2) {
+        if (i1 === i2) continue; // never create self rules
+        (out[i1] ||= {})[i2] = v;
+        (out[i2] ||= {})[i1] = v; // enforce symmetry
+      }
+    }
+  }
+  return out;
+}
+
+// Adjacents may be an array (['idA','idB']) or an object ({ idA: true, ... }).
+// We normalize to { [id]: string[] } with symmetry and degree≤2.
+function normalizeAdjacentsToIds(
+  raw: Record<string, any>,
+  idSet: Set<string>,
+  nameToIds: Map<string, string[]>,
+  singleNameToId: Map<string, string>
+) {
+  const acc: Record<string, Set<string>> = {};
+  const push = (a: string, b: string) => {
+    (acc[a] ||= new Set()).add(b);
+    (acc[b] ||= new Set()).add(a);
+  };
+
+  for (const [ka, v] of Object.entries(raw || {})) {
+    const ia = keysToIds(ka, idSet, nameToIds, singleNameToId);
+    if (ia.length === 0) continue;
+
+    const partners: string[] =
+      Array.isArray(v) ? v.filter(Boolean) :
+      (v && typeof v === 'object') ? Object.keys(v) :
+      [];
+
+    for (const kb of partners) {
+      const ib = keysToIds(kb, idSet, nameToIds, singleNameToId);
+      if (ib.length === 0) continue;
+      for (const a of ia) for (const b of ib) {
+        if (a !== b) push(a, b);
+      }
+    }
+  }
+
+  // Deduplicate + enforce degree ≤ 2
+  const out: Record<string, string[]> = {};
+  for (const [k, set] of Object.entries(acc)) {
+    out[k] = Array.from(set).slice(0, 2);
+  }
+  return out;
+}
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Adjacency graph helpers — IDs only (resolves circular/self/degree issues)
 // ───────────────────────────────────────────────────────────────────────────────
@@ -107,21 +208,21 @@ const ConstraintManager: React.FC = () => {
   // Device & UI
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
-
+  
   // Pagination (preserved)
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-
+  
   // Sorting (preserved)
   const [sortOption, setSortOption] = useState<SortOption>('as-entered');
-
+  
   // Warning banner state (preserved)
   const [isWarningExpanded, setIsWarningExpanded] = useState(false);
   const [initialWarningShown, setInitialWarningShown] = useState(false);
   const [userHasInteractedWithWarning, setUserHasInteractedWithWarning] = useState(false);
-
+  
   const isPremium = isPremiumSubscription(state.subscription);
-
+  
   // Detect touch device (preserved)
   useEffect(() => {
     const checkTouchDevice = () =>
@@ -130,20 +231,41 @@ const ConstraintManager: React.FC = () => {
     window.addEventListener('resize', checkTouchDevice);
     return () => window.removeEventListener('resize', checkTouchDevice);
   }, []);
-
+  
   // Debounced conflict detection (preserved)
   const updateConflicts = useDebouncedCallback(async () => {
     if (state.guests.length < 2 || state.tables.length === 0) {
       setConflicts([]);
       return;
     }
+
+    // Build lookups once per run
+    const { idSet, nameToIds, singleNameToId } = buildNameLookup(state.guests as Array<{id:string; name:string}>);
+
+    // Normalize the possibly-mixed state to stable ID space
+    const normConstraints = normalizeConstraintsToIds(
+      state.constraints as any,
+      idSet,
+      nameToIds,
+      singleNameToId
+    );
+
+    const normAdjacents = normalizeAdjacentsToIds(
+      state.adjacents as any,
+      idSet,
+      nameToIds,
+      singleNameToId
+    );
+
+    // IMPORTANT: match actual signature used in this codebase
     const result = detectConstraintConflicts(
       state.guests,
-      state.constraints,
+      normConstraints,
       state.tables,
       true,
-      state.adjacents
+      normAdjacents
     );
+
     setConflicts(result || []);
   }, 300);
 
@@ -163,10 +285,10 @@ const ConstraintManager: React.FC = () => {
   // Export constraints (preserved)
   const exportJSON = React.useCallback(() => {
     const data = JSON.stringify(
-      {
-        guests: state.guests.length,
-        constraints: state.constraints,
-        adjacents: state.adjacents,
+      { 
+        guests: state.guests.length, 
+        constraints: state.constraints, 
+        adjacents: state.adjacents, 
         exportedAt: new Date().toISOString(),
       },
       null,
@@ -189,8 +311,8 @@ const ConstraintManager: React.FC = () => {
 
       if (window.confirm(`Remove constraint between ${name1} and ${name2}? This may clear existing seating plans.`)) {
         dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: key1, guest2: key2, value: '' } });
-        purgeSeatingPlans();
-      }
+      purgeSeatingPlans();
+    }
     },
     [dispatch, state.guests]
   );
@@ -219,7 +341,7 @@ const ConstraintManager: React.FC = () => {
       setInitialWarningShown(false);
     }
   }, [state.guests.length, isPremium, userHasInteractedWithWarning, initialWarningShown]);
-
+  
   // Reset pagination when guest list changes (preserved)
   useEffect(() => {
     setCurrentPage(0);
@@ -229,7 +351,7 @@ const ConstraintManager: React.FC = () => {
       setTotalPages(1);
     }
   }, [state.guests.length, isPremium]);
-
+  
   const handleToggleWarning = () => {
     setIsWarningExpanded((prev) => !prev);
     setUserHasInteractedWithWarning(true);
@@ -242,7 +364,7 @@ const ConstraintManager: React.FC = () => {
     localStorage.setItem('seatyr_current_setting_name', 'Unsaved');
     dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
   };
-
+  
   // Helpers: stable name/id maps
   const nameById = useMemo(() => new Map(state.guests.map((g) => [g.id, g.name])), [state.guests]);
   const idByName = useMemo(() => new Map(state.guests.map((g) => [g.name, g.id])), [state.guests]);
@@ -404,7 +526,7 @@ const ConstraintManager: React.FC = () => {
         </div>
       );
     }
-
+    
     // Ensure constraints and adjacents are valid objects with comprehensive validation
     const constraints = state.constraints || {};
     const adjacents = state.adjacents || {};
@@ -453,8 +575,8 @@ const ConstraintManager: React.FC = () => {
 
     // Header row
     const headerRow: React.ReactNode[] = [
-      <th
-        key="corner"
+      <th 
+        key="corner" 
         className="bg-indigo-50 font-medium p-2 border border-[#586D78] border-2 sticky top-0 left-0 z-30"
       >
         Guest Names
@@ -479,9 +601,9 @@ const ConstraintManager: React.FC = () => {
             {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         ) : null;
-
+      
       headerRow.push(
-        <th
+        <th 
           key={`col-${guest.id}`}
           className={`p-2 font-medium sticky top-0 z-20 min-w-[100px] cursor-pointer transition-colors duration-200 border border-[#586D78] border-2 ${
             isHighlighted ? 'bg-[#88abc6]' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'
@@ -501,7 +623,7 @@ const ConstraintManager: React.FC = () => {
         </th>
       );
     });
-
+    
     const grid: React.ReactNode[] = [<tr key="header">{headerRow}</tr>];
 
     // Rows
@@ -525,9 +647,9 @@ const ConstraintManager: React.FC = () => {
             {adjacentCount === 1 ? '⭐' : '⭐⭐'}
           </span>
         ) : null;
-
+      
       row.push(
-        <td
+        <td 
           key={`row-${rowIndex}`}
           className={`p-2 font-medium sticky left-0 z-10 min-w-[280px] cursor-pointer transition-colors duration-200 border-r border-[#586D78] border border-[#586D78] border-2 ${
             isRowHighlighted ? 'bg-[#88abc6]' : isRowSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'
@@ -545,11 +667,11 @@ const ConstraintManager: React.FC = () => {
             {/* Party size display */}
             <div className="text-xs text-[#586D78] mt-1">
               Party size: {g1.count} {g1.count === 1 ? 'person' : 'people'}
-            </div>
+              </div>
             {/* Table assignment line (centralized formatter; ID-based) */}
             <div className="text-xs text-[#586D78] mt-1">
               {formatTableAssignment(state.assignments, state.tables, keyOf(g1))}
-            </div>
+                  </div>
           </div>
         </td>
       );
@@ -580,27 +702,27 @@ const ConstraintManager: React.FC = () => {
 
         // Precedence: cannot > adjacency > must > empty
         let cellContent: React.ReactNode = null;
-        let bgColor = '';
-
-        if (constraintValue === 'cannot') {
-          bgColor = 'bg-[#e6130b]';
-          cellContent = <span className="text-black font-bold">X</span>;
+          let bgColor = '';
+          
+          if (constraintValue === 'cannot') {
+            bgColor = 'bg-[#e6130b]';
+            cellContent = <span className="text-black font-bold">X</span>;
         } else if (isAdjacent) {
           bgColor = 'bg-[#22cf04]';
-          cellContent = (
-            <div className="flex items-center justify-center space-x-1">
+            cellContent = (
+              <div className="flex items-center justify-center space-x-1">
               <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>
                 ⭐
               </span>
-              <span className="text-black font-bold">&</span>
+                <span className="text-black font-bold">&</span>
               <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>
                 ⭐
               </span>
-            </div>
-          );
-        } else if (constraintValue === 'must') {
-          bgColor = 'bg-[#22cf04]';
-          cellContent = <span className="text-black font-bold">&</span>;
+              </div>
+            );
+          } else if (constraintValue === 'must') {
+            bgColor = 'bg-[#22cf04]';
+            cellContent = <span className="text-black font-bold">&</span>;
         }
 
         const isCellHighlighted =
@@ -608,18 +730,18 @@ const ConstraintManager: React.FC = () => {
           ((highlightedPair.guest1 === keyOf(g1) && highlightedPair.guest2 === keyOf(g2)) ||
             (highlightedPair.guest1 === keyOf(g2) && highlightedPair.guest2 === keyOf(g1)));
         if (isCellHighlighted) bgColor = 'bg-[#88abc6]';
-
-        row.push(
-          <td
+          
+          row.push(
+            <td
             key={`cell-${g1.id}-${g2.id}`}
-            className={`p-2 border border-[#586D78] border-2 cursor-pointer transition-colors duration-200 text-center ${bgColor}`}
+              className={`p-2 border border-[#586D78] border-2 cursor-pointer transition-colors duration-200 text-center ${bgColor}`}
             onClick={() => handleToggleConstraint(keyOf(g1), keyOf(g2))}
             data-guest1={keyOf(g1)}
             data-guest2={keyOf(g2)}
-          >
-            {cellContent}
-          </td>
-        );
+            >
+              {cellContent}
+            </td>
+          );
       });
 
       grid.push(<tr key={`row-${g1.id}`}>{row}</tr>);
@@ -683,45 +805,45 @@ const ConstraintManager: React.FC = () => {
       }
       return pageButtons;
     };
-
+    
     // Performance notice + pagination controls (preserved)
     const paginationControls =
       needsPagination && (
-        <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
-          <div className="flex items-center w-full justify-between">
+      <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
+        <div className="flex items-center w-full justify-between">
             <div className="pl-[280px]">
-              <button
+            <button
                 onClick={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
-                disabled={currentPage === 0}
-                className="danstyle1c-btn w-24 mx-1"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Previous
-              </button>
-            </div>
+              disabled={currentPage === 0}
+              className="danstyle1c-btn w-24 mx-1"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Previous
+            </button>
+          </div>
             <div className="flex flex-wrap justify-center">{renderPageNumbers()}</div>
             <div className="pr-[10px]">
-              <button
+            <button
                 onClick={() => setCurrentPage((prev) => Math.min(totalPagesCalc - 1, prev + 1))}
                 disabled={currentPage >= totalPagesCalc - 1}
-                className="danstyle1c-btn w-24 mx-1"
-              >
-                Next
+              className="danstyle1c-btn w-24 mx-1"
+            >
+              Next
                 <ChevronRight className="w-4 h-4 ml-2" />
-              </button>
-            </div>
+            </button>
           </div>
         </div>
-      );
-
+      </div>
+    );
+    
     const showPerformanceWarning = !isPremium && state.guests.length > 100 && state.guests.length <= GUEST_THRESHOLD;
-
+    
     return (
       <div className="flex flex-col space-y-4">
         {showPerformanceWarning && (
-          <div className="bg-[#88abc6] border border-[#586D78] rounded-md p-4 flex items-start">
-            <AlertCircle className="text-white mr-2 flex-shrink-0 mt-1" />
-            <div className="text-sm text-white">
+                  <div className="bg-[#88abc6] border border-[#586D78] rounded-md p-4 flex items-start">
+          <AlertCircle className="text-white mr-2 flex-shrink-0 mt-1" />
+          <div className="text-sm text-white">
               <p className="font-medium">Performance Notice</p>
               <p>
                 You have {state.guests.length} guests, which may cause the constraint grid to be slow to render and
@@ -731,15 +853,15 @@ const ConstraintManager: React.FC = () => {
             </div>
           </div>
         )}
+        
 
-
-
+        
         <div className="overflow-auto max-h-[60vh] border border-[#586D78] rounded-md relative">
           <table className="w-full border-collapse bg-white">
             <tbody>{grid}</tbody>
           </table>
         </div>
-
+        
         {needsPagination && paginationControls}
       </div>
     );
@@ -766,47 +888,47 @@ const ConstraintManager: React.FC = () => {
       <h2 className="text-2xl font-semibold text-[#586D78] mb-0">Rules Management</h2>
 
 
-
+      
       <Card>
         <div className="space-y-14">
           {/* Header with Hide/Show Conflicts button */}
           <div className="flex justify-between items-start">
             <div className="flex-1">
-              {showConflicts && conflicts.length > 0 && (
+          {showConflicts && conflicts.length > 0 && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4" style={{ width: '60%' }}>
-                  <h3 className="flex items-center text-red-800 font-medium mb-2">
-                    <AlertTriangle className="w-4 h-4 mr-1" />
-                    Detected Conflicts ({conflicts.length})
-                  </h3>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
+              <h3 className="flex items-center text-red-800 font-medium mb-2">
+                <AlertTriangle className="w-4 h-4 mr-1" />
+                Detected Conflicts ({conflicts.length})
+              </h3>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
                     {conflicts.map((conflict) => (
-                      <div key={conflict.id} className="text-sm">
-                        <p className="text-red-700">{conflict.description}</p>
-                        <div className="flex flex-wrap gap-2 mt-1">
+                  <div key={conflict.id} className="text-sm">
+                    <p className="text-red-700">{conflict.description}</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
                           {conflict.affectedGuests.map((idA, idx) => {
-                            if (idx < conflict.affectedGuests.length - 1) {
+                        if (idx < conflict.affectedGuests.length - 1) {
                               const idB = conflict.affectedGuests[idx + 1];
                               const aName = nameById.get(idA) || idA;
                               const bName = nameById.get(idB) || idB;
-                              return (
-                                <button
+                          return (
+                            <button
                                   key={`${idA}-${idB}`}
                                   onClick={() => resolveConflict(idA, idB)}
-                                  className="text-xs text-indigo-600 hover:underline"
-                                >
+                              className="text-xs text-indigo-600 hover:underline"
+                            >
                                   Resolve ({aName} & {bName})
-                                </button>
-                              );
-                            }
-                            return null;
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                            </button>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
+          )}
+                  </div>
             
             {/* Hide/Show Conflicts button in upper right - only show when conflicts exist */}
             {conflicts.length > 0 && (
@@ -828,21 +950,21 @@ const ConstraintManager: React.FC = () => {
             <ul className="list-disc pl-5 space-y-2 text-gray-600 text-[17px]">
               <li>
                 Click a cell to cycle between constraints:
-                <div className="mt-1 flex space-x-4">
-                  <span className="flex items-center">
-                    <span className="inline-block w-3 h-3 bg-[#22cf04] border border-[#586D78] mr-1"></span>
-                    Must sit at the same table
-                  </span>
-                  <span className="flex items-center">
-                    <span className="inline-block w-3 h-3 bg-[#e6130b] border border-[#586D78] mr-1"></span>
-                    Cannot sit at the same table
-                  </span>
-                  <span className="flex items-center">
-                    <span className="inline-block w-3 h-3 bg-white border border-[#586D78] mr-1"></span>
-                    No constraint
-                  </span>
-                </div>
-              </li>
+                  <div className="mt-1 flex space-x-4">
+                    <span className="flex items-center">
+                      <span className="inline-block w-3 h-3 bg-[#22cf04] border border-[#586D78] mr-1"></span> 
+                      Must sit at the same table
+                    </span>
+                    <span className="flex items-center">
+                      <span className="inline-block w-3 h-3 bg-[#e6130b] border border-[#586D78] mr-1"></span> 
+                      Cannot sit at the same table
+                    </span>
+                    <span className="flex items-center">
+                      <span className="inline-block w-3 h-3 bg-white border border-[#586D78] mr-1"></span> 
+                      No constraint
+                    </span>
+                  </div>
+                </li>
               
               <div>
                 {/* Adjacent-Pairing Accordion repositioned here */}
@@ -852,62 +974,62 @@ const ConstraintManager: React.FC = () => {
                     <p>Double-click a guest name to select it.</p>
                     <p>Click another guest and the adjacency will be set automatically.</p>
                     <p>Guests with adjacent constraints are marked with ⭐ (star emoji).</p>
-                  </div>
+            </div>
                 </details>
               </div>
             </ul>
           </div>
         </div>
       </Card>
-
+    
       <Card title="Constraint Grid">
         <div className="flex flex-col lg:flex-row justify-between items-center mb-4 space-y-2 lg:space-y-0">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-700 font-medium flex items-center">
-                <ArrowDownAZ className="w-5 h-5 mr-2" />
-                Sort by:
-              </span>
-              <div className="flex space-x-2">
-                <button
-                  className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                  onClick={() => setSortOption('as-entered')}
-                >
-                  As Entered
-                </button>
-                <button
-                  className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                  onClick={() => setSortOption('first-name')}
-                >
-                  First Name
-                </button>
-                <button
-                  className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                  onClick={() => setSortOption('last-name')}
-                >
-                  Last Name
-                </button>
-                <button
+          <div className="flex items-center space-x-2">
+            <span className="text-gray-700 font-medium flex items-center">
+              <ArrowDownAZ className="w-5 h-5 mr-2" />
+              Sort by:
+            </span>
+            <div className="flex space-x-2">
+              <button
+                className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                onClick={() => setSortOption('as-entered')}
+              >
+                As Entered
+              </button>
+              <button
+                className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                onClick={() => setSortOption('first-name')}
+              >
+                First Name
+              </button>
+              <button
+                className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                onClick={() => setSortOption('last-name')}
+              >
+                Last Name
+              </button>
+              <button
                   className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${
                     state.seatingPlans.length === 0 ? 'opacity-50' : ''
                   }`}
-                  onClick={() => setSortOption('current-table')}
-                  disabled={state.seatingPlans.length === 0}
-                >
-                  Current Table
-                </button>
+                onClick={() => setSortOption('current-table')}
+                disabled={state.seatingPlans.length === 0}
+              >
+                Current Table
+              </button>
               </div>
             </div>
           </div>
-
+          
           {/* Export button moved to top-right */}
           <div className="flex items-center">
             <button onClick={exportJSON} className="danstyle1c-btn" title="Export constraints as JSON">
-              <Download className="w-4 h-4 mr-1" />
-              Export
-            </button>
+                <Download className="w-4 h-4 mr-1" />
+                Export
+              </button>
           </div>
-
+          
           {/* Navigation buttons above the grid - only shown for 120+ guests (preserved) */}
           {shouldShowPagination && state.guests.length > 0 && (
             <div className="flex space-x-2">
@@ -931,7 +1053,7 @@ const ConstraintManager: React.FC = () => {
             </div>
           )}
         </div>
-
+        
         <div ref={gridRef}>
           {state.guests.length === 0 ? (
             <p className="text-gray-500 text-center py-4">
@@ -942,7 +1064,7 @@ const ConstraintManager: React.FC = () => {
           )}
         </div>
       </Card>
-
+      
       <SavedSettingsAccordion isDefaultOpen={false} />
     </div>
   );
