@@ -104,7 +104,7 @@ const TableManager: React.FC = () => {
   
   // Check if user has premium subscription
   const isPremium = isPremiumSubscription(state.subscription);
-
+  
   const purgePlans = () => {
     dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
     dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
@@ -117,7 +117,7 @@ const TableManager: React.FC = () => {
     dispatch({ type: 'AUTO_RECONCILE_TABLES' });
     purgePlans();
   }, [totalSeatsNeeded, state.assignments, dispatch]);
-
+  
   const handleAddTable = () => {
     if (state.tables.length >= 100) {
       alert('Maximum number of tables (100) reached.');
@@ -207,8 +207,8 @@ const TableManager: React.FC = () => {
 
   // Functions for Assignment Manager functionality
   const handleUpdateAssignment = (guestName: string, value: string) => {
-    dispatch({
-      type: 'UPDATE_ASSIGNMENT',
+        dispatch({
+          type: 'UPDATE_ASSIGNMENT',
       payload: { name: guestName, tables: value }
     });
     purgePlans();
@@ -483,16 +483,16 @@ const TableManager: React.FC = () => {
                           {adjacent.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{adjacent.map(n => <span key={`adj-${n}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border bg-yellow-50 border-yellow-200 text-yellow-900" title="Adjacent preference">⭐ {n}</span>)}</div>}
                           <ConstraintChipsInput tone="must" ownerName={guest.name} value={must} onChange={names => updateConstraints(guest.name, names, 'must')} allGuests={state.guests} activeFieldKey={activeFieldKey} setActiveFieldKey={setActiveFieldKey} />
                         </div>
-                        <div>
+                <div>
                           <label className="block text-sm font-medium text-red-700 mb-1">Cannot Sit With</label>
                           <ConstraintChipsInput tone="cannot" ownerName={guest.name} value={cannot} onChange={names => updateConstraints(guest.name, names, 'cannot')} allGuests={state.guests} activeFieldKey={activeFieldKey} setActiveFieldKey={setActiveFieldKey} />
                         </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                </div>
+              </div>
+                  );
+                })}
+              </div>
           </div>
         )}
       </div>

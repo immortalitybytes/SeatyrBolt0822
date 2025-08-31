@@ -21,6 +21,9 @@ import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { Guest, ConstraintConflict } from '../types';
 import { FormatGuestName } from '../components/FormatGuestName';
 
+// Canonical Phase‑1 key = guest.name (matches AppContext today)
+const keyOf = (g: { name?: string } | string) => (typeof g === 'string' ? g : (g?.name ?? ''));
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Config & Types
 // ───────────────────────────────────────────────────────────────────────────────
@@ -309,7 +312,8 @@ const ConstraintManager: React.FC = () => {
 
   // Toggle constraint cell (IDs only; preserved precedence cycling)
   const handleToggleConstraint = (guest1Id: string, guest2Id: string) => {
-    if (guest1Id === guest2Id) return;
+    const a = keyOf(guest1Id), b = keyOf(guest2Id);
+    if (a === b) return;
     setSelectedGuestId(null);
     setHighlightedPair(null);
     if (highlightTimeout) {
@@ -317,15 +321,17 @@ const ConstraintManager: React.FC = () => {
       setHighlightTimeout(null);
     }
 
-    const currentValue = state.constraints[guest1Id]?.[guest2Id] || '';
+    const currentValue = state.constraints[a]?.[b] || '';
     const nextValue: 'must' | 'cannot' | '' = currentValue === '' ? 'must' : currentValue === 'must' ? 'cannot' : '';
-    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: guest1Id, guest2: guest2Id, value: nextValue } });
+    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: nextValue } });
     purgeSeatingPlans();
   };
 
   // Get adjacency count for a guestId (preserved indicator)
   const getAdjacentCount = (guestId: string) => {
-    return state.adjacents[guestId]?.length || 0;
+    const key = keyOf(guestId);
+    const raw = state.adjacents[key];
+    return Array.isArray(raw) ? raw.length : (raw ? Object.keys(raw).length : 0);
   };
 
   // Select two guests to set adjacency (IDs only) with rule enforcement
@@ -339,8 +345,8 @@ const ConstraintManager: React.FC = () => {
       return;
     }
 
-    const a = selectedGuestId;
-    const b = guestId;
+    const a = keyOf(selectedGuestId);
+    const b = keyOf(guestId);
 
     // Degree cap: each node ≤ 2
     const degA = getAdjacentCount(a);
@@ -456,17 +462,17 @@ const ConstraintManager: React.FC = () => {
     ];
 
     displayGuests.forEach((guest) => {
-      const adjacentCount = getAdjacentCount(guest.id);
-      const isSelected = selectedGuestId === guest.id;
+      const adjacentCount = getAdjacentCount(keyOf(guest));
+      const isSelected = selectedGuestId === keyOf(guest);
       const isHighlighted =
-        !!highlightedPair && (highlightedPair.guest1 === guest.id || highlightedPair.guest2 === guest.id);
+        !!highlightedPair && (highlightedPair.guest1 === keyOf(guest) || highlightedPair.guest2 === keyOf(guest));
 
       const adjacentIndicator =
         adjacentCount > 0 ? (
           <span
             className="text-[#b3b508] font-bold ml-1"
-            title={`Adjacent to: ${(adjacents[guest.id] || [])
-              .map((id) => nameById.get(id) || id)
+            title={`Adjacent to: ${(state.adjacents[keyOf(guest)] || [])
+              .map((name) => name)
               .join(', ')}`}
             style={{ fontSize: '0.7em' }}
           >
@@ -480,8 +486,8 @@ const ConstraintManager: React.FC = () => {
           className={`p-2 font-medium sticky top-0 z-20 min-w-[100px] cursor-pointer transition-colors duration-200 border border-[#586D78] border-2 ${
             isHighlighted ? 'bg-[#88abc6]' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'
           }`}
-          onDoubleClick={() => handleGuestSelect(guest.id)}
-          onTouchStart={(e) => handleLongPress(e, guest.id)}
+          onDoubleClick={() => handleGuestSelect(keyOf(guest))}
+          onTouchStart={(e) => handleLongPress(e, keyOf(guest))}
           onTouchEnd={clearLongPressTimer}
           data-id={guest.id}
         >
@@ -500,9 +506,9 @@ const ConstraintManager: React.FC = () => {
 
     // Rows
     guests.forEach((g1, rowIndex) => {
-      const isRowSelected = selectedGuestId === g1.id;
+      const isRowSelected = selectedGuestId === keyOf(g1);
       const isRowHighlighted =
-        !!highlightedPair && (highlightedPair.guest1 === g1.id || highlightedPair.guest2 === g1.id);
+        !!highlightedPair && (highlightedPair.guest1 === keyOf(g1) || highlightedPair.guest2 === keyOf(g1));
       const row: React.ReactNode[] = [];
 
       // Left sticky cell (name, party size, table assignment)
@@ -511,8 +517,8 @@ const ConstraintManager: React.FC = () => {
         adjacentCount > 0 ? (
           <span
             className="text-[#b3b508] font-bold ml-1"
-            title={`Adjacent to: ${(state.adjacents[g1.id] || [])
-              .map((id) => nameById.get(id) || id)
+            title={`Adjacent to: ${(state.adjacents[keyOf(g1)] || [])
+              .map((name) => name)
               .join(', ')}`}
             style={{ fontSize: '0.7em' }}
           >
@@ -526,8 +532,8 @@ const ConstraintManager: React.FC = () => {
           className={`p-2 font-medium sticky left-0 z-10 min-w-[280px] cursor-pointer transition-colors duration-200 border-r border-[#586D78] border border-[#586D78] border-2 ${
             isRowHighlighted ? 'bg-[#88abc6]' : isRowSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'
           }`}
-          onDoubleClick={() => handleGuestSelect(g1.id)}
-          onTouchStart={(e) => handleLongPress(e, g1.id)}
+          onDoubleClick={() => handleGuestSelect(keyOf(g1))}
+          onTouchStart={(e) => handleLongPress(e, keyOf(g1))}
           onTouchEnd={clearLongPressTimer}
           data-id={g1.id}
         >
@@ -542,7 +548,7 @@ const ConstraintManager: React.FC = () => {
             </div>
             {/* Table assignment line (centralized formatter; ID-based) */}
             <div className="text-xs text-[#586D78] mt-1">
-              {formatTableAssignment(state.assignments, state.tables, g1.id)}
+              {formatTableAssignment(state.assignments, state.tables, keyOf(g1))}
             </div>
           </div>
         </td>
@@ -550,7 +556,8 @@ const ConstraintManager: React.FC = () => {
 
       // Data cells (only for visible column slice)
       displayGuests.forEach((g2) => {
-        if (g1.id === g2.id) {
+        const isDiagonal = keyOf(g1) === keyOf(g2);
+        if (isDiagonal) {
           row.push(
             <td key={`cell-${g1.id}-${g2.id}`} className="p-2 border border-[#586D78] border-2 bg-gray-800" />
           );
@@ -562,12 +569,13 @@ const ConstraintManager: React.FC = () => {
         const adjacents = state.adjacents || {};
         
         // Ensure we have valid objects and safe access
+        const k1 = keyOf(g1); const k2 = keyOf(g2);
         const constraintValue = (typeof constraints === 'object' && constraints !== null && !Array.isArray(constraints)) 
-          ? (constraints[g1.id]?.[g2.id] || '') 
+          ? (constraints[k1]?.[k2] || '') 
           : '';
           
         const isAdjacent = (typeof adjacents === 'object' && adjacents !== null && !Array.isArray(adjacents))
-          ? ((adjacents[g1.id] || []).includes(g2.id) || (adjacents[g2.id] || []).includes(g1.id))
+          ? ((adjacents[k1] || []).includes(k2) || (adjacents[k2] || []).includes(k1))
           : false;
 
         // Precedence: cannot > adjacency > must > empty
@@ -597,17 +605,17 @@ const ConstraintManager: React.FC = () => {
 
         const isCellHighlighted =
           !!highlightedPair &&
-          ((highlightedPair.guest1 === g1.id && highlightedPair.guest2 === g2.id) ||
-            (highlightedPair.guest1 === g2.id && highlightedPair.guest2 === g1.id));
+          ((highlightedPair.guest1 === keyOf(g1) && highlightedPair.guest2 === keyOf(g2)) ||
+            (highlightedPair.guest1 === keyOf(g2) && highlightedPair.guest2 === keyOf(g1)));
         if (isCellHighlighted) bgColor = 'bg-[#88abc6]';
 
         row.push(
           <td
             key={`cell-${g1.id}-${g2.id}`}
             className={`p-2 border border-[#586D78] border-2 cursor-pointer transition-colors duration-200 text-center ${bgColor}`}
-            onClick={() => handleToggleConstraint(g1.id, g2.id)}
-            data-guest1={g1.id}
-            data-guest2={g2.id}
+            onClick={() => handleToggleConstraint(keyOf(g1), keyOf(g2))}
+            data-guest1={keyOf(g1)}
+            data-guest2={keyOf(g2)}
           >
             {cellContent}
           </td>

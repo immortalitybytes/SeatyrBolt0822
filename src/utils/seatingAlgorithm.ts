@@ -193,10 +193,10 @@ export function detectConstraintConflicts(
           c.type === 'circular' && 
           c.description.includes(cycleDescription)
         )) {
-          conflicts.push({
+      conflicts.push({
             id: Date.now().toString(),
             type: 'circular',
-            severity: 'high',
+        severity: 'high',
             description: `Circular dependency: ${cycleDescription}`,
             affectedGuests: cycle,
           });
@@ -251,13 +251,13 @@ export function detectConstraintConflicts(
          const canAccommodate = tables.some(t => t.seats >= totalSeatsNeeded);
         
         if (!canAccommodate) {
-          conflicts.push({
+        conflicts.push({
             id: Date.now().toString(),
-            type: 'impossible',
+          type: 'impossible',
             severity: 'critical',
             description: `Contradictory constraints between ${guestMap.get(guest1)?.name} and ${guestMap.get(guest2)?.name} - no table can accommodate both parties.`,
-            affectedGuests: [guest1, guest2],
-          });
+          affectedGuests: [guest1, guest2],
+        });
         }
       }
       checkedPairs.add(pairKey);

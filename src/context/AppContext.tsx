@@ -330,7 +330,14 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     }
 
     case 'SET_CONSTRAINT': {
-      const { guest1, guest2, value } = action.payload;
+      const { guest1, guest2, value } = action.payload || {};
+      
+      // Lightweight validation (no UI changes)
+      if (!guest1 || !guest2 || guest1 === guest2 || !['', 'must', 'cannot'].includes(value)) {
+        console.error('Invalid SET_CONSTRAINT payload, skipping update');
+        return state;
+      }
+      
       const newConstraints = { ...state.constraints };
 
       if (!newConstraints[guest1]) newConstraints[guest1] = {};
