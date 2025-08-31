@@ -28,11 +28,7 @@ const GuestManager: React.FC = () => {
   const [editingGuestId, setEditingGuestId] = useState<number | null>(null);
   const [editingGuestName, setEditingGuestName] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('as-entered');
-  const [videoVisible, setVideoVisible] = useState(() => {
-    // Initialize based on user status immediately
-    const userIsLoggedIn = !!state.user;
-    return !userIsLoggedIn; // true for non-signed, false for signed
-  });
+  const [videoVisible, setVideoVisible] = useState(false);
   const videoRef = useRef<HTMLIFrameElement>(null);
   
   // Use duplicateGuests from state (if available) or local state as fallback
@@ -120,32 +116,34 @@ const GuestManager: React.FC = () => {
     // Determine default state based on login status
     const userIsLoggedIn = !!state.user;
     
-    if (userIsLoggedIn) {
-      // For logged in users: default to collapsed
-      setVideoVisible(false);
-    } else {
-      // For non-logged in users: default to expanded with autoplay
-      setVideoVisible(true);
-      
-      // If there's a video reference and it's now visible, update src for autoplay
-      if (videoRef.current) {
-        const iframe = videoRef.current;
-        const currentSrc = iframe.src;
-        if (currentSrc.includes('autoplay=0')) {
-          iframe.src = currentSrc.replace('autoplay=0', 'autoplay=1');
-        } else if (!currentSrc.includes('autoplay=1')) {
-          iframe.src = currentSrc + (currentSrc.includes('?') ? '&' : '?') + 'autoplay=1';
-        }
-      }
-    }
-    
-    // If user manually changed this setting before, respect that preference
+    // Check if user manually changed this setting before
     const savedPreference = localStorage.getItem('seatyr_video_visible');
+    
     if (savedPreference !== null) {
+      // User has a saved preference, respect it
       setVideoVisible(savedPreference === 'true');
     } else {
-      // Save the default preference to localStorage
-      localStorage.setItem('seatyr_video_visible', userIsLoggedIn ? 'false' : 'true');
+      // No saved preference, use default based on login status
+      if (userIsLoggedIn) {
+        // For logged in users: default to collapsed
+        setVideoVisible(false);
+        localStorage.setItem('seatyr_video_visible', 'false');
+      } else {
+        // For non-logged in users: default to expanded with autoplay
+        setVideoVisible(true);
+        localStorage.setItem('seatyr_video_visible', 'true');
+        
+        // If there's a video reference and it's now visible, update src for autoplay
+        if (videoRef.current) {
+          const iframe = videoRef.current;
+          const currentSrc = iframe.src;
+          if (currentSrc.includes('autoplay=0')) {
+            iframe.src = currentSrc.replace('autoplay=0', 'autoplay=1');
+          } else if (!currentSrc.includes('autoplay=1')) {
+            iframe.src = currentSrc + (currentSrc.includes('?') ? '&' : '?') + 'autoplay=1';
+          }
+        }
+      }
     }
   }, [state.user]);
 

@@ -399,25 +399,41 @@ const ConstraintManager: React.FC = () => {
       );
     }
 
-    // Ensure constraints and adjacents are valid objects
+    // Ensure constraints and adjacents are valid objects with comprehensive validation
     const constraints = state.constraints || {};
     const adjacents = state.adjacents || {};
     
-    // Validate that constraints and adjacents are proper objects
+    // Comprehensive validation with detailed error reporting
     if (typeof constraints !== 'object' || constraints === null || Array.isArray(constraints)) {
-      console.error('Invalid constraints state:', constraints);
+      console.error('Invalid constraints state:', constraints, 'Type:', typeof constraints);
       return (
         <div className="text-center py-8 text-red-500">
-          Error: Invalid constraint data structure.
+          <div className="font-bold mb-2">Constraint Data Error</div>
+          <div className="text-sm">Invalid constraint data structure detected.</div>
+          <div className="text-sm mt-1">Type: {typeof constraints}</div>
+          <button 
+            className="danstyle1c-btn mt-3" 
+            onClick={() => window.location.reload()}
+          >
+            Reload Page
+          </button>
         </div>
       );
     }
     
     if (typeof adjacents !== 'object' || adjacents === null || Array.isArray(adjacents)) {
-      console.error('Invalid adjacents state:', adjacents);
+      console.error('Invalid adjacents state:', adjacents, 'Type:', typeof adjacents);
       return (
         <div className="text-center py-8 text-red-500">
-          Error: Invalid adjacency data structure.
+          <div className="font-bold mb-2">Adjacency Data Error</div>
+          <div className="text-sm">Invalid adjacency data structure detected.</div>
+          <div className="text-sm mt-1">Type: {typeof adjacents}</div>
+          <button 
+            className="danstyle1c-btn mt-3" 
+            onClick={() => window.location.reload()}
+          >
+            Reload Page
+          </button>
         </div>
       );
     }
@@ -541,10 +557,18 @@ const ConstraintManager: React.FC = () => {
           return;
         }
 
-        const constraintValue = state.constraints[g1.id]?.[g2.id] || '';
-        const isAdjacent =
-            (state.adjacents[g1.id] || []).includes(g2.id) ||
-            (state.adjacents[g2.id] || []).includes(g1.id);
+        // Safe constraint and adjacency checks with validation
+        const constraints = state.constraints || {};
+        const adjacents = state.adjacents || {};
+        
+        // Ensure we have valid objects and safe access
+        const constraintValue = (typeof constraints === 'object' && constraints !== null && !Array.isArray(constraints)) 
+          ? (constraints[g1.id]?.[g2.id] || '') 
+          : '';
+          
+        const isAdjacent = (typeof adjacents === 'object' && adjacents !== null && !Array.isArray(adjacents))
+          ? ((adjacents[g1.id] || []).includes(g2.id) || (adjacents[g2.id] || []).includes(g1.id))
+          : false;
 
         // Precedence: cannot > adjacency > must > empty
         let cellContent: React.ReactNode = null;
@@ -790,10 +814,10 @@ const ConstraintManager: React.FC = () => {
 
 
 
-          <div className="space-y-4">
+          <div className="flex flex-col justify-center h-24">
             <h3 className="text-lg font-semibold text-[#586D78] mb-0">How to use constraints:</h3>
             
-            <ul className="list-disc pl-5 space-y-4 text-gray-600 text-[17px]">
+            <ul className="list-disc pl-5 space-y-2 text-gray-600 text-[17px]">
               <li>
                 Click a cell to cycle between constraints:
                 <div className="mt-1 flex space-x-4">
@@ -812,17 +836,17 @@ const ConstraintManager: React.FC = () => {
                 </div>
               </li>
               
-              <li>
+              <div>
                 {/* Adjacent-Pairing Accordion repositioned here */}
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-sm font-medium text-[#586D78]">To set "Adjacent Seating" (guests sit right next to each other):</summary>
+                  <summary className="cursor-pointer text-[17px] font-medium text-gray-600">To set "Adjacent Seating" (guests sit right next to each other):</summary>
                   <div className="mt-2 text-sm text-[#586D78] space-y-1">
                     <p>Double-click a guest name to select it.</p>
                     <p>Click another guest and the adjacency will be set automatically.</p>
                     <p>Guests with adjacent constraints are marked with ⭐ (star emoji).</p>
                   </div>
                 </details>
-              </li>
+              </div>
             </ul>
           </div>
         </div>
