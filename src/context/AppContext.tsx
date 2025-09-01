@@ -263,8 +263,13 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const { oldName, newName } = action.payload;
       if (!oldName || !newName || oldName === newName) return state;
 
-      // 1) guests array
-      const guests = (state.guests || []).map(g => g.name === oldName ? { ...g, name: newName } : g);
+      // Import countHeads function to recalculate count
+      const { countHeads } = require('../utils/guestCount');
+
+      // 1) guests array - update name and recalculate count
+      const guests = (state.guests || []).map(g => 
+        g.name === oldName ? { ...g, name: newName, count: countHeads(newName) } : g
+      );
 
       // 2) constraints: row rename and column rename
       const constraints = { ...(state.constraints || {}) };
