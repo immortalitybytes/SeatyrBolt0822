@@ -11,6 +11,7 @@ import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
 import { canReduceTables } from '../utils/tables';
 import { useNavigate } from 'react-router-dom';
+import FormatGuestName from '../components/FormatGuestName';
 
 // Sort options
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
@@ -868,7 +869,7 @@ const saveEditGuestName = (index: number) => {
                       </p>
                       <ul className="text-amber-600 text-sm mt-1 list-disc pl-5">
                         {duplicateGuests.map((name, index) => (
-                          <li key={index}>{name}</li>
+                          <li key={index}><FormatGuestName name={name} /></li>
                         ))}
                       </ul>
                     </div>

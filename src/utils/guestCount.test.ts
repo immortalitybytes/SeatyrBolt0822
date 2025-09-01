@@ -3,7 +3,7 @@
  * Tests the tokenizer-based parser for comprehensive coverage
  */
 
-import { countHeads } from './guestCount';
+import { countHeads, extractPartySuffix, getDisplayName } from './guestCount';
 
 describe('countHeads - Comprehensive Parsing Tests', () => {
   describe('Basic connector parsing', () => {
@@ -194,6 +194,68 @@ describe('countHeads - Comprehensive Parsing Tests', () => {
     test('Many connectors', () => {
       const manyConnectors = 'A & B + C and D plus E also F';
       expect(countHeads(manyConnectors)).toBe(6);
+    });
+  });
+});
+
+describe('extractPartySuffix - Party Suffix Extraction Tests', () => {
+  describe('Numeric suffix forms', () => {
+    test('Plus numeric suffixes', () => {
+      expect(extractPartySuffix('Samantha King+2')).toBe('+2');
+      expect(extractPartySuffix('John Smith + 3')).toBe('+3');
+      expect(extractPartySuffix('Alice & 4')).toBe('+4');
+    });
+
+    test('Parentheses format', () => {
+      expect(extractPartySuffix('Michael (2)')).toBe('+2');
+      expect(extractPartySuffix('Family (5)')).toBe('+5');
+    });
+  });
+
+  describe('Verbal suffix forms', () => {
+    test('Plus guest variations', () => {
+      expect(extractPartySuffix('Ashley Miller + guest')).toBe('+1');
+      expect(extractPartySuffix('John plus guest')).toBe('+1');
+      expect(extractPartySuffix('Alice and guest')).toBe('+1');
+    });
+
+    test('Plus word variations', () => {
+      expect(extractPartySuffix('Michael plus one')).toBe('+1');
+      expect(extractPartySuffix('Sarah and two')).toBe('+2');
+      expect(extractPartySuffix('David + three')).toBe('+3');
+    });
+  });
+
+  describe('Integration with countHeads and getDisplayName', () => {
+    test('Samantha King+2 integration', () => {
+      expect(countHeads('Samantha King+2')).toBe(3);
+      expect(extractPartySuffix('Samantha King+2')).toBe('+2');
+      expect(getDisplayName('Samantha King+2')).toBe('Samantha King');
+    });
+
+    test('Ashley Miller + guest integration', () => {
+      expect(countHeads('Ashley Miller + guest')).toBe(2);
+      expect(extractPartySuffix('Ashley Miller + guest')).toBe('+1');
+      expect(getDisplayName('Ashley Miller + guest')).toBe('Ashley Miller');
+    });
+
+    test('Michael & Enid Lawrence (no suffix)', () => {
+      expect(countHeads('Michael & Enid Lawrence')).toBe(2);
+      expect(extractPartySuffix('Michael & Enid Lawrence')).toBe(null);
+      expect(getDisplayName('Michael & Enid Lawrence')).toBe('Michael & Enid Lawrence');
+    });
+  });
+
+  describe('Edge cases', () => {
+    test('No suffix cases', () => {
+      expect(extractPartySuffix('John Smith')).toBe(null);
+      expect(extractPartySuffix('Alice & Bob')).toBe(null);
+      expect(extractPartySuffix('')).toBe(null);
+    });
+
+    test('Invalid inputs', () => {
+      expect(extractPartySuffix(null as any)).toBe(null);
+      expect(extractPartySuffix(undefined as any)).toBe(null);
     });
   });
 });

@@ -4,6 +4,7 @@ import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
+import FormatGuestName from '../components/FormatGuestName';
 
 const useDebounce = (value: string, delay: number): string => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -469,7 +470,7 @@ const TableManager: React.FC = () => {
                   <div key={guest.name} className="rounded-2xl border-[3px] border-white bg-white/90 shadow-sm p-3">
                     <div className="flex flex-col space-y-2">
                       <div className="flex items-center">
-                        <span className="font-medium text-[#586D78]">{guest.name}</span>
+                        <FormatGuestName name={guest.name} />
                         <span className="ml-2 px-2 py-0.5 text-xs rounded-full border border-gray-300">Party size: {guest.count}</span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

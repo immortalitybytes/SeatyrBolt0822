@@ -181,3 +181,64 @@ export function formatTableName(table: Pick<Table, 'id' | 'name'>): string {
   
   return baseLabel;
 }
+
+/**
+ * Splits a composite GuestUnit name into tokens to "bold" in rotation.
+ * Connectors considered: " and ", " & ", " + ", " plus ", " also " (case-insensitive).
+ */
+export function seatingTokensFromGuestUnit(raw: string): string[] {
+  if (!raw || typeof raw !== 'string') return [raw || ''];
+  
+  // Remove trailing party suffix for base tokens (keep it for N-of-N expansion)
+  const baseName = raw
+    .replace(/\s*\(\s*\d+\s*\)\s*$/i, '')
+    .replace(/\s*[&+]\s*\d+\s*$/i, '')
+    .replace(/\s+(?:and|plus|\+|&)\s+(?:guest|guests?)\s*$/i, '')
+    .trim();
+  
+  // Split by connectors while preserving the token words (no punctuation)
+  const tokens = baseName.split(/\s+(?:and|&|\+|plus|also)\s+/i)
+    .map(token => token.trim())
+    .filter(token => token.length > 0);
+  
+  // Return at least one token (the whole string if split fails)
+  return tokens.length > 0 ? tokens : [baseName];
+}
+
+/**
+ * Converts "+N" etc to ["1st of N", "2nd of N", ...] for display only.
+ */
+export function nOfNTokensFromSuffix(raw: string): string[] {
+  if (!raw || typeof raw !== 'string') return [];
+  
+  const s = raw.trim();
+  if (!s) return [];
+  
+  // Parse +N, (N), plus/and N, plus/and guest(s) => N
+  const plusNum = s.match(/[&+]\s*(\d+)\s*$/);
+  const paren = s.match(/\((\d+)\)\s*$/);
+  const plusGuest = /\b(?:\+|plus|and)\s+(?:guest|guests?)\s*$/i.test(s);
+  const plusWord = s.match(/\b(?:\+|plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i);
+  
+  let n = 0;
+  if (plusNum) n = parseInt(plusNum[1], 10);
+  else if (paren) n = parseInt(paren[1], 10);
+  else if (plusGuest) n = 1;
+  else if (plusWord) {
+    const map: Record<string, number> = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
+    n = map[plusWord[1].toLowerCase()] || 1;
+  }
+  
+  if (n <= 0) return [];
+  
+  // Generate English ordinals
+  const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
+  const result: string[] = [];
+  
+  for (let i = 1; i <= n; i++) {
+    const ordinal = i <= 10 ? ordinals[i - 1] : `${i}th`;
+    result.push(`${ordinal} of ${n}`);
+  }
+  
+  return result;
+}

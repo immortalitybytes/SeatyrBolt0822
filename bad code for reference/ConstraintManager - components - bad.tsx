@@ -1,8 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, ChevronDown, ChevronUp, X, Download, CheckCircle, AlertTriangle } from 'lucide-react';
-
-// Disable large guest list warnings site-wide
-const SHOW_LARGE_LIST_WARNING = false;
 import Card from './Card';
 import Button from './Button';
 import { useApp } from '../context/AppContext';
@@ -10,7 +7,6 @@ import { isPremiumSubscription } from '../utils/premium';
 import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
 import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
 import SavedSettingsAccordion from './SavedSettingsAccordion';
-import FormatGuestName from './FormatGuestName';
 
 // Sort options
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
@@ -252,7 +248,12 @@ const ConstraintManager: React.FC = () => {
           data-name={guest.name}
         >
           <div className="max-w-[100px] leading-tight" style={{ minHeight: '3rem', wordWrap: 'break-word', whiteSpace: 'normal' }}>
-            <FormatGuestName name={guest.name} />
+            {guest.name.includes('%') ? (
+              <>
+                {guest.name.split('%')[0]}
+                <span style={{ color: '#959595' }}>%{guest.name.split('%')[1]}</span>
+              </>
+            ) : guest.name}
             {adjacentIndicator}
           </div>
         </th>
@@ -421,8 +422,8 @@ const ConstraintManager: React.FC = () => {
             key={i}
             onClick={() => setCurrentPage(i)}
             className={currentPage === i 
-              ? 'danstyle1c-btn selected mx-1 w-4'
-              : 'danstyle1c-btn mx-1 w-4'}
+              ? 'danstyle1c-btn selected mx-1 w-8'
+              : 'danstyle1c-btn mx-1 w-8'}
           >
             {i + 1}
           </button>
@@ -440,8 +441,8 @@ const ConstraintManager: React.FC = () => {
               key={i}
               onClick={() => setCurrentPage(i)}
               className={currentPage === i 
-                ? 'danstyle1c-btn selected mx-1 w-4'
-                : 'danstyle1c-btn mx-1 w-4'}
+                ? 'danstyle1c-btn selected mx-1 w-8'
+                : 'danstyle1c-btn mx-1 w-8'}
             >
               {i + 1}
             </button>
@@ -458,7 +459,7 @@ const ConstraintManager: React.FC = () => {
             <button
               key={currentPage}
               onClick={() => setCurrentPage(currentPage)}
-              className="danstyle1c-btn selected mx-1 w-4"
+              className="danstyle1c-btn selected mx-1 w-8"
             >
               {currentPage + 1}
             </button>
@@ -478,8 +479,8 @@ const ConstraintManager: React.FC = () => {
             key={i}
             onClick={() => setCurrentPage(i)}
             className={currentPage === i 
-              ? 'danstyle1c-btn selected mx-1 w-4'
-              : 'danstyle1c-btn mx-1 w-4'}
+              ? 'danstyle1c-btn selected mx-1 w-8'
+              : 'danstyle1c-btn mx-1 w-8'}
           >
             {i + 1}
           </button>
@@ -527,7 +528,7 @@ const ConstraintManager: React.FC = () => {
     
     return (
       <div className="flex flex-col space-y-4">
-        {showPerformanceWarning && SHOW_LARGE_LIST_WARNING && (
+        {showPerformanceWarning && (
                   <div className="bg-[#88abc6] border border-[#586D78] rounded-md p-4 flex items-start">
           <AlertCircle className="text-white mr-2 flex-shrink-0 mt-1" />
           <div className="text-sm text-white">
@@ -538,7 +539,7 @@ const ConstraintManager: React.FC = () => {
           </div>
         )}
         
-        {needsPagination && SHOW_LARGE_LIST_WARNING && (
+        {needsPagination && (
                   <div className={`border border-[#586D78] rounded-md transition-all ${isWarningExpanded ? 'bg-[#88abc6] p-4' : 'bg-[#88abc6]/50 px-4 py-2'}`}>
           <div className="flex justify-between items-center">
             <div className="flex items-center">

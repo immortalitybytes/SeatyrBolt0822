@@ -1,70 +1,69 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MapPin, ArrowLeft, ArrowRight, RefreshCw, AlertCircle } from 'lucide-react';
+import { MapPin, ArrowLeft, ArrowRight, RefreshCw, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { generateSeatingPlans } from '../utils/seatingAlgorithm';
 import { ValidationError } from '../types';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 import { isPremiumSubscription } from '../utils/premium';
+import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/formatters';
 
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
     
-    // Show the ENTIRE GuestUnit content with bolding for the specific seat
-    const parts = rawName.split(/(\s*(?:&|\+|and|plus)\s*)/i);
-    const finalTokens: (string | { type: 'delimiter'; value: string })[] = [];
-  
-    for (const part of parts) {
-      if (/\s*(?:&|\+|and|plus)\s*/i.test(part)) {
-        // This is a connector - keep it as-is
-        finalTokens.push({ type: 'delimiter', value: part });
+    // Compute base tokens and extra tokens using helper functions
+    const baseTokens = seatingTokensFromGuestUnit(rawName);
+    const extraTokens = nOfNTokensFromSuffix(rawName);
+    const finalTokens = baseTokens.concat(extraTokens);
+    
+    // Reconstruct the original name with connectors preserved
+    const originalName = rawName.trim();
+    
+    // Find which token to bold based on seat index
+    const tokenToBold = finalTokens[seatIndex % finalTokens.length];
+    
+    // Split the original name to preserve connectors
+    const parts = originalName.split(/(\s*(?:and|&|\+|plus|also)\s*)/i);
+    const result: React.ReactNode[] = [];
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      
+      if (/\s*(?:and|&|\+|plus|also)\s*/i.test(part)) {
+        // This is a connector - render as-is
+        result.push(<span key={`conn-${i}`}>{part}</span>);
       } else {
-        // This is a name part - handle numeric suffixes
+        // This is a name part
         const trimmedPart = part.trim();
-        if (!trimmedPart) continue; // Skip empty parts
+        if (!trimmedPart) continue;
         
-        const numericMatch = trimmedPart.match(/([+])\s*(\d+)$/);
-        if (numericMatch) {
-          const baseName = trimmedPart.substring(0, numericMatch.index).trim();
-          const num = parseInt(numericMatch[2], 10);
-          
-          if (baseName) {
-            finalTokens.push(baseName);
-          }
-          
-          for (let i = 0; i < num; i++) {
-            if (i > 0 || baseName) {
-              finalTokens.push({ type: 'delimiter', value: ` ${numericMatch[1]} ` });
-            }
-            const suffix = i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th';
-            finalTokens.push(`${i + 1}${suffix} of ${num}`);
-          }
+        // Check if this part should be bolded
+        if (trimmedPart === tokenToBold) {
+          result.push(<strong key={`bold-${i}`}>{trimmedPart}</strong>);
         } else {
-          // Regular name part - add it as a complete unit
-          finalTokens.push(trimmedPart);
+          result.push(<span key={`norm-${i}`}>{trimmedPart}</span>);
         }
       }
     }
-  
-    let nameIndex = 0;
-    return (
-      <>
-        {finalTokens.map((token, index) => {
-          if (typeof token === 'object') {
-            // This is a connector - render as-is
-            return <span key={`del-${index}`}>{token.value}</span>;
-          }
-          
-          // This is a name part - check if it should be bolded
-          const isTarget = nameIndex === seatIndex;
-          nameIndex++;
-          
-          return isTarget ? 
-            <strong key={`tok-${index}`}>{token}</strong> : 
-            <span key={`tok-${index}`}>{token}</span>;
-        })}
-      </>
-    );
+    
+    // Add extra tokens (Nth of N) at the end if they exist
+    if (extraTokens.length > 0) {
+      const extraTokenToBold = extraTokens[seatIndex % extraTokens.length];
+      result.push(<span key="extra-sep"> + </span>);
+      
+      extraTokens.forEach((token, index) => {
+        if (token === extraTokenToBold) {
+          result.push(<strong key={`extra-bold-${index}`}>{token}</strong>);
+        } else {
+          result.push(<span key={`extra-norm-${index}`}>{token}</span>);
+        }
+        if (index < extraTokens.length - 1) {
+          result.push(<span key={`extra-conn-${index}`}> + </span>);
+        }
+      });
+    }
+    
+    return <>{result}</>;
 };
 
 const displayTableLabel = (table: { id: number; name?: string | null }, index: number): string => {
@@ -77,10 +76,18 @@ const displayTableLabel = (table: { id: number; name?: string | null }, index: n
 };
 
 
+// Constants for guest pagination (matching Constraints page)
+const GUEST_THRESHOLD = 120; // pagination threshold
+const GUESTS_PER_PAGE = 10;
+
 const SeatingPlanViewer: React.FC = () => {
   const { state, dispatch } = useApp();
   const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState<ValidationError[]>([]);
+  
+  // Guest pagination state (matching Constraints page)
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Get premium status from subscription
   const isPremium = isPremiumSubscription(state.subscription);
@@ -106,6 +113,16 @@ const SeatingPlanViewer: React.FC = () => {
     }
   }, [state.guests, state.tables, state.constraints, state.adjacents, state.seatingPlans.length, isPremium, dispatch]);
 
+  // Guest pagination logic (matching Constraints page)
+  useEffect(() => {
+    setCurrentPage(0);
+    if (isPremium && state.user && state.guests.length > GUEST_THRESHOLD) {
+      setTotalPages(Math.ceil(state.guests.length / GUESTS_PER_PAGE));
+    } else {
+      setTotalPages(1);
+    }
+  }, [state.guests, isPremium, state.user]);
+
   const capacityById = useMemo(() => {
     const map = new Map<number, number>();
     state.tables.forEach(t => map.set(t.id, t.seats));
@@ -116,6 +133,11 @@ const SeatingPlanViewer: React.FC = () => {
     if (!plan) return [];
     return [...plan.tables].sort((a, b) => a.id - b.id);
   }, [plan]);
+
+  // Navigation functions (matching Constraints page)
+  const needsPagination = isPremium && state.user && state.guests.length > GUEST_THRESHOLD;
+  const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
+  const handleNavigatePage = (delta: number) => setCurrentPage(p => Math.max(0, Math.min(totalPages - 1, p + delta)));
 
   const handleGenerateSeatingPlan = async () => {
       setIsGenerating(true);
@@ -136,6 +158,32 @@ const SeatingPlanViewer: React.FC = () => {
       } finally {
           setIsGenerating(false);
       }
+  };
+
+  // Render page numbers function (matching Constraints page)
+  const renderPageNumbers = () => {
+    if (totalPages <= 9) {
+      return Array.from({ length: totalPages }, (_, i) => (
+        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>
+          {i + 1}
+        </button>
+      ));
+    }
+    const buttons: JSX.Element[] = [];
+    for (let i = 0; i < 3; i++) if (i < totalPages) buttons.push(
+      <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>{i + 1}</button>
+    );
+    if (currentPage > 2) {
+      buttons.push(<span key="ellipsis1" className="mx-1">...</span>);
+      if (currentPage < totalPages - 3) buttons.push(
+        <button key={currentPage} onClick={() => setCurrentPage(currentPage)} className="danstyle1c-btn selected mx-1 w-4">{currentPage + 1}</button>
+      );
+    }
+    if (currentPage < totalPages - 3) buttons.push(<span key="ellipsis2" className="mx-1">...</span>);
+    for (let i = Math.max(3, totalPages - 3); i < totalPages; i++) buttons.push(
+      <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>{i + 1}</button>
+    );
+    return buttons;
   };
 
   const handleNavigatePlan = (delta: number) => {
@@ -319,7 +367,34 @@ const SeatingPlanViewer: React.FC = () => {
           </div>
         )}
 
+        {/* Guest pagination controls - top (matching Constraints page) */}
+        {shouldShowPagination && state.user && state.guests.length > 0 && (
+          <div className="flex space-x-2 mb-4">
+            <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0}><ChevronLeft className="w-4 h-4 mr-1" /> Previous</button>
+            <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1}>Next <ChevronRight className="w-4 h-4 ml-1" /></button>
+          </div>
+        )}
+
         {renderCurrentPlan()}
+        
+        {/* Guest pagination controls - bottom (matching Constraints page) */}
+        {needsPagination && (
+          <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
+            <div className="flex items-center w-full justify-between">
+              <div className="pl-[140px]">
+                <button onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0} className="danstyle1c-btn w-24 mx-1">
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+                </button>
+              </div>
+                <div className="flex flex-wrap justify-center">{renderPageNumbers()}</div>
+                <div className="pr-[10px]">
+                <button onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1} className="danstyle1c-btn w-24 mx-1">
+                  Next <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Bottom navigation buttons - preserved */}
         {plan && (

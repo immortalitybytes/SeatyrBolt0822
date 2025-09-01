@@ -9,7 +9,8 @@ import { redirectToCheckout } from '../lib/stripe';
 import { isPremiumSubscription, getMaxGuestLimit, getGuestLimitMessage } from '../utils/premium';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
-import { getDisplayName } from '../utils/guestCount';
+import { getDisplayName, countHeads } from '../utils/guestCount';
+import FormatGuestName from '../components/FormatGuestName';
 
 import { useNavigate } from 'react-router-dom';
 import { saveRecentSessionSettings } from '../lib/sessionSettings';
@@ -620,30 +621,27 @@ const GuestManager: React.FC = () => {
       setEditingGuestName('');
       return;
     }
-    const parsed = parseGuestInput(editingGuestName)[0];
-    if (parsed) {
-      // Automatically update seat count when guest name changes
-      const newCount = parsed.count;
-      const currentGuest = state.guests[index];
-      
+    const newName = editingGuestName.trim();
+    const newCount = countHeads(newName);
+    const currentGuest = state.guests[index];
+    
+    dispatch({
+      type: 'RENAME_GUEST',
+      payload: { oldName: currentGuest.name, newName: newName }
+    });
+    
+    // Update seat count if it changed
+    if (newCount !== currentGuest.count) {
       dispatch({
-        type: 'RENAME_GUEST',
-        payload: { oldName: currentGuest.name, newName: parsed.name }
+        type: 'UPDATE_GUEST_COUNT',
+        payload: { index, count: newCount }
       });
-      
-      // Update seat count if it changed
-      if (newCount !== currentGuest.count) {
-        dispatch({
-          type: 'UPDATE_GUEST_COUNT',
-          payload: { index, count: newCount }
-        });
-      }
-      
-      purgeSeatingPlans();
-      setLocalDuplicateGuests([]);
-      dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
-      setShowDuplicateWarning(false);
     }
+      
+    purgeSeatingPlans();
+    setLocalDuplicateGuests([]);
+    dispatch({ type: 'SET_DUPLICATE_GUESTS', payload: [] });
+    setShowDuplicateWarning(false);
     setEditingGuestId(null);
     setEditingGuestName('');
   };
@@ -911,25 +909,22 @@ const GuestManager: React.FC = () => {
           </div>
           
               {/* Pulsing Arrow Emoji for Non-signed Users - right arrow with color cycling and pulsing */}
-              <div className="flex justify-end items-center">
-              <div 
-                className="pulsing-arrow"
-                style={{
-                  fontSize: '36pt',
-                  animation: 'pulseAndColor 2s ease-in-out infinite',
-                  animationIterationCount: 5
-                }}
-              >
-                ➡️
+              <div className="flex justify-end pr-4">
+                <div
+                  className="pulsing-arrow self-end translate-y-2"
+                  style={{ fontSize: '36pt', animation: 'pulseAndColor 2s ease-in-out infinite', animationIterationCount: 5 }}
+                  aria-hidden
+                >
+                  ➡️
+                </div>
               </div>
-            </div>
             </div>
           </div>
           
           {/* Enter Guest Names Box - 60% width, same height as left box */}
           <div className="flex-1 bg-white rounded-lg shadow-md p-4 border border-[#566F9B] mt-2">
             <div className="flex flex-col h-[256px]">
-              <div className="text-sm text-gray-500 mt-2 space-y-1">
+              <div className="text-[1.05rem] text-gray-500 mt-2 space-y-1">
                 <p>Enter guest names separated by commas or line breaks.</p>
                 <p>Connect couples and parties with an ampersand (&).</p>
               </div>
@@ -972,7 +967,7 @@ const GuestManager: React.FC = () => {
                       </p>
                       <ul className="text-white text-sm mt-1 list-disc pl-5">
                         {duplicateGuests.map((name, index) => (
-                          <li key={index}>{name}</li>
+                          <li key={index}><FormatGuestName name={name} /></li>
                         ))}
                       </ul>
                     </div>
@@ -1053,7 +1048,7 @@ const GuestManager: React.FC = () => {
                       </p>
                       <ul className="text-white text-sm mt-1 list-disc pl-5">
                         {duplicateGuests.map((name, index) => (
-                          <li key={index}>{name}</li>
+                          <li key={index}><FormatGuestName name={name} /></li>
                         ))}
                       </ul>
                     </div>
@@ -1243,12 +1238,14 @@ const GuestManager: React.FC = () => {
                 <ArrowDownAZ className="w-4 h-4 mr-1" />
                 Sort:
               </span>
-              <button
-                className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('as-entered')}
-              >
-                As Entered
-              </button>
+              {state.user && (
+                <button
+                  className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
+                  onClick={() => setSortOption('as-entered')}
+                >
+                  As Entered
+                </button>
+              )}
               <button
                 className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
                 onClick={() => setSortOption('first-name')}
@@ -1261,13 +1258,15 @@ const GuestManager: React.FC = () => {
               >
                 Last Name
               </button>
-              <button
-                className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${state.seatingPlans.length === 0 ? 'opacity-50' : ''}`}
-                onClick={() => setSortOption('current-table')}
-                disabled={state.seatingPlans.length === 0}
-              >
-                Current Table
-              </button>
+              {state.user && (
+                <button
+                  className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${state.seatingPlans.length === 0 ? 'opacity-50' : ''}`}
+                  onClick={() => setSortOption('current-table')}
+                  disabled={state.seatingPlans.length === 0}
+                >
+                  Current Table
+                </button>
+              )}
             </div>
           </div>
         } 
@@ -1318,16 +1317,7 @@ const GuestManager: React.FC = () => {
                         onDoubleClick={() => handleRenameGuest(originalIndex, guest.name)}
                         style={{ cursor: "pointer" }}
                       >
-                        {(() => {
-                          const displayName = getDisplayName(guest.name);
-                          return displayName.includes('%') ? (
-                          <>
-                              {displayName.split('%')[0]}
-                            <span style={{ color: '#959595' }}>%</span>
-                              {displayName.split('%')[1]}
-                          </>
-                          ) : displayName;
-                        })()}
+                        <FormatGuestName name={guest.name} />
                         <Edit2 className="w-3 h-3 ml-1 text-gray-400 cursor-pointer" 
                             onClick={() => handleRenameGuest(originalIndex, guest.name)} />
                       </span>

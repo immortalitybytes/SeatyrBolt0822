@@ -1,4 +1,5 @@
 import React from 'react';
+import { extractPartySuffix, getDisplayName } from '../utils/guestCount';
 
 interface FormatGuestNameProps {
   name: string;
@@ -16,27 +17,45 @@ interface FormatGuestNameProps {
  * - "Test%" → "Test" (handles edge case)
  */
 export const FormatGuestName: React.FC<FormatGuestNameProps> = ({ name, className = '' }) => {
+  const suffix = extractPartySuffix(name);
+  const display = getDisplayName(name);
+
   // Early return for invalid or non-special names
-  if (!name || typeof name !== 'string' || !name.includes('%')) {
-    return <span className={className}>{name}</span>;
+  if (!display || typeof display !== 'string' || !display.includes('%')) {
+    return (
+      <span className={className}>
+        {display}
+        {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
+      </span>
+    );
   }
 
   // Split on % and handle multiple % characters gracefully
-  const [prefix, ...restParts] = name.split('%');
+  const [prefix, ...restParts] = display.split('%');
   const rest = restParts.join('%');
 
   // Handle edge case where % is at the end
   if (!rest.trim()) {
-    return <span className={className}>{prefix.replace('%', '')}</span>;
+    return (
+      <span className={className}>
+        {prefix.replace('%', '')}
+        {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
+      </span>
+    );
   }
 
   // Extract the first word after % for styling using robust regex
   const match = rest.match(/(\s*)(\S+)(.*)/);
   if (!match) {
-    return <span className={className}>{prefix}{rest}</span>;
+    return (
+      <span className={className}>
+        {prefix}{rest}
+        {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
+      </span>
+    );
   }
 
-  const [, leadingSpace, styledWord, suffix] = match;
+  const [, leadingSpace, styledWord, suffixText] = match;
 
   return (
     <span className={className}>
@@ -45,7 +64,8 @@ export const FormatGuestName: React.FC<FormatGuestNameProps> = ({ name, classNam
       <span style={{ color: '#959595', fontStyle: 'italic' }}>
         {styledWord}
       </span>
-      {suffix}
+      {suffixText}
+      {suffix && <span className="ml-0.5 font-normal">{suffix}</span>}
     </span>
   );
 };

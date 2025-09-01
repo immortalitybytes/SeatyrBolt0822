@@ -10,6 +10,28 @@ export function getDisplayName(raw: string): string {
     .trim();
 }
 
+export function extractPartySuffix(raw: string): string | null {
+  const s = String(raw).trim();
+  if (!s) return null;
+
+  // numeric suffix forms: +2, & 2, (2)
+  const plusNum = s.match(/[&+]\s*(\d+)\s*$/);
+  const paren = s.match(/\((\d+)\)\s*$/);
+
+  // verbal forms: "+ guest", "plus one", "and two"
+  const plusGuest = /\b(?:\+|plus|and)\s+(?:guest|guests?)\s*$/i.test(s);
+  const plusWord = s.match(/\b(?:\+|plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i);
+
+  if (plusNum) return `+${parseInt(plusNum[1], 10)}`;
+  if (paren)    return `+${parseInt(paren[1], 10)}`;
+  if (plusGuest) return '+1';
+  if (plusWord) {
+    const map: Record<string, number> = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
+    return `+${map[plusWord[1].toLowerCase()] || 1}`;
+  }
+  return null;
+}
+
 export function countHeads(raw: string): number {
   let s = raw.trim(); if (!s) return 0;
   const baseTokens = s.split(/\s*(?:&|\+|and|plus)\s*/i).filter(Boolean);

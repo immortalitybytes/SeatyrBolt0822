@@ -8,6 +8,7 @@ import { saveRecentSessionSettings } from '../lib/sessionSettings';
 import { canReduceTables } from '../utils/tables';
 import { useNavigate } from 'react-router-dom';
 import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
+import FormatGuestName from '../components/FormatGuestName';
 
 
 const TableManager: React.FC = () => {
@@ -790,12 +791,7 @@ const TableManager: React.FC = () => {
                         <div className="min-w-[150px] font-medium text-[#586D78]">
                           <div className="flex items-center">
                             <span className="font-medium">
-                              {guest.name.includes('%') ? (
-                                <>
-                                  {guest.name.split('%')[0]}
-                                  <span style={{ color: '#959595' }}>%{guest.name.split('%')[1]}</span>
-                                </>
-                              ) : guest.name}
+                              <FormatGuestName name={guest.name} />
                             </span>
                             <span className="ml-2 px-2 py-0.5 text-xs rounded-full border border-gray-300">
                               Party size: {Math.max(1, guest.count ?? 1)}
