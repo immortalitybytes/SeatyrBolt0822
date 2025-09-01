@@ -1,983 +1,527 @@
+// src/pages/ConstraintManager.tsx
+// Fully functional grid UI that reads raw app state for compatibility
+// but FEEDS the solver a clean, ID-keyed, duplicate-safe view via a boundary shim.
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import {
-  ClipboardList,
-  Info,
-  AlertCircle,
-  ChevronLeft,
-  ChevronRight,
-  ArrowDownAZ,
-  ChevronDown,
-  X,
-  Download,
-  CheckCircle,
-  AlertTriangle,
-} from 'lucide-react';
+import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, X, CheckCircle, AlertTriangle } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
-import { getLastNameForSorting, formatTableAssignment } from '../utils/formatters';
-import { detectConstraintConflicts } from '../utils/seatingAlgorithm';
-import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
-import { Guest, ConstraintConflict } from '../types';
-import { FormatGuestName } from '../components/FormatGuestName';
+import { getLastNameForSorting } from '../utils/formatters';
+import { squash } from '../utils/stateSanitizer';
+import { detectConstraintConflictsSafe } from '../utils/conflictsSafe';
 
-// Canonical Phase‑1 key = guest.name (matches AppContext today)
-const keyOf = (g: { name?: string } | string) => (typeof g === 'string' ? g : (g?.name ?? ''));
+// ——————————————————————————————————————————————
+// Normalization helpers moved to shared util (squash)
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Config & Types
-// ───────────────────────────────────────────────────────────────────────────────
+// ——————————————————————————————————————————————
+// Local debounce
+function useDebouncedCallback<T extends (...args: any[]) => any>(callback: T, delay: number) {
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current); }, []);
+  return React.useCallback((...args: Parameters<T>) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => callback(...args), delay);
+  }, [callback, delay]);
+}
+
+// ——————————————————————————————————————————————
+// Types (loose to match existing app state)
+interface ConflictItem { id?: string; type: string; description?: string; message?: string; affectedGuests: string[]; [k: string]: any }
+interface Guest { id: string; name: string; count?: number }
+
 type SortOption = 'as-entered' | 'first-name' | 'last-name' | 'current-table';
 
-const GUEST_THRESHOLD = 120; // Threshold for pagination
-const GUESTS_PER_PAGE = 10; // Show 10 guests per page when paginating
+const GUEST_THRESHOLD = 120; // pagination threshold
+const GUESTS_PER_PAGE = 10;
 
-// ───────────────────────────────────────────────────────────────────────────────
-// Debounce helper (preserves CursorAI UX behavior)
-// ───────────────────────────────────────────────────────────────────────────────
-function useDebouncedCallback<T extends (...args: any[]) => any>(callback: T, delay: number) {
-  const timeoutRef = useRef<number | null>(null);
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-    };
-  }, []);
-  return React.useCallback(
-    (...args: Parameters<T>) => {
-      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = window.setTimeout(() => callback(...args), delay);
-    },
-    [callback, delay]
-  );
-}
-
-// ===== P-0: Just-in-Time Normalization (IDs) =====
-// Purpose: Feed conflict detection a clean, ID-keyed, symmetric view –
-// without refactoring state or UI. Safe with mixed keyspaces, dup names,
-// stale/ghost keys, and varying adjacency shapes.
-
-type ConstraintVal = '' | 'must' | 'cannot';
-
-function buildNameLookup(guests: Array<{ id: string; name: string }>) {
-  const nameToIds = new Map<string, string[]>();
-  const idSet = new Set<string>();
-  for (const g of guests) {
-    idSet.add(g.id);
-    if (!nameToIds.has(g.name)) nameToIds.set(g.name, []);
-    nameToIds.get(g.name)!.push(g.id);
-  }
-  const singleNameToId = new Map<string, string>();
-  for (const [name, ids] of nameToIds) if (ids.length === 1) singleNameToId.set(name, ids[0]);
-  return { idSet, nameToIds, singleNameToId };
-}
-
-// Map possibly-mixed keys (name or id) → array of concrete IDs.
-// Ambiguous duplicate names return [] so we *skip* those rules safely.
-function keysToIds(
-  key: string,
-  idSet: Set<string>,
-  nameToIds: Map<string, string[]>,
-  singleNameToId: Map<string, string>
-): string[] {
-  if (idSet.has(key)) return [key];                    // Already an ID
-  if (singleNameToId.has(key)) return [singleNameToId.get(key)!]; // Unique name
-  const dup = nameToIds.get(key);
-  if (dup && dup.length > 1) return [];                // Ambiguous – skip
-  return [];                                           // Ghost/unknown – skip
-}
-
-// Accepts either { [k: string]: 'must'|'cannot'|'' } row objects
-// or undefined; enforces symmetry; prunes invalid/self/ghost keys.
-function normalizeConstraintsToIds(
-  raw: Record<string, Record<string, ConstraintVal> | undefined>,
-  idSet: Set<string>,
-  nameToIds: Map<string, string[]>,
-  singleNameToId: Map<string, string>
-) {
-  const out: Record<string, Record<string, 'must' | 'cannot'>> = {};
-  for (const [k1, row] of Object.entries(raw || {})) {
-    const ids1 = keysToIds(k1, idSet, nameToIds, singleNameToId);
-    if (ids1.length === 0) continue; // ghost or ambiguous name
-    for (const [k2, v] of Object.entries(row || {})) {
-      if (v !== 'must' && v !== 'cannot') continue;
-      const ids2 = keysToIds(k2, idSet, nameToIds, singleNameToId);
-      if (ids2.length === 0) continue;
-      for (const i1 of ids1) for (const i2 of ids2) {
-        if (i1 === i2) continue; // never create self rules
-        (out[i1] ||= {})[i2] = v;
-        (out[i2] ||= {})[i1] = v; // enforce symmetry
-      }
-    }
-  }
-  return out;
-}
-
-// Adjacents may be an array (['idA','idB']) or an object ({ idA: true, ... }).
-// We normalize to { [id]: string[] } with symmetry and degree≤2.
-function normalizeAdjacentsToIds(
-  raw: Record<string, any>,
-  idSet: Set<string>,
-  nameToIds: Map<string, string[]>,
-  singleNameToId: Map<string, string>
-) {
-  const acc: Record<string, Set<string>> = {};
-  const push = (a: string, b: string) => {
-    (acc[a] ||= new Set()).add(b);
-    (acc[b] ||= new Set()).add(a);
-  };
-
-  for (const [ka, v] of Object.entries(raw || {})) {
-    const ia = keysToIds(ka, idSet, nameToIds, singleNameToId);
-    if (ia.length === 0) continue;
-
-    const partners: string[] =
-      Array.isArray(v) ? v.filter(Boolean) :
-      (v && typeof v === 'object') ? Object.keys(v) :
-      [];
-
-    for (const kb of partners) {
-      const ib = keysToIds(kb, idSet, nameToIds, singleNameToId);
-      if (ib.length === 0) continue;
-      for (const a of ia) for (const b of ib) {
-        if (a !== b) push(a, b);
-      }
-    }
-  }
-
-  // Deduplicate + enforce degree ≤ 2
-  const out: Record<string, string[]> = {};
-  for (const [k, set] of Object.entries(acc)) {
-    out[k] = Array.from(set).slice(0, 2);
-  }
-  return out;
-}
-
-// ───────────────────────────────────────────────────────────────────────────────
-// Adjacency graph helpers — IDs only (resolves circular/self/degree issues)
-// ───────────────────────────────────────────────────────────────────────────────
-function buildAdjacencyGraph(guests: Guest[], adj: Record<string, string[] | undefined>) {
-  const byId = new Map(guests.map((g) => [g.id, g]));
-  const edges = new Map<string, Set<string>>(guests.map((g) => [g.id, new Set<string>()]));
-  for (const [a, list] of Object.entries(adj || {})) {
-    if (!byId.has(a)) continue;
-    for (const b of list || []) {
-      if (!byId.has(b) || a === b) continue; // ignore unknown/self
-      edges.get(a)!.add(b);
-      edges.get(b)!.add(a);
-    }
-  }
-  return { byId, edges };
-}
-
-function getComponent(startId: string, edges: Map<string, Set<string>>) {
-  const seen = new Set<string>();
-  const stack = [startId];
-  while (stack.length) {
-    const v = stack.pop()!;
-    if (seen.has(v)) continue;
-    seen.add(v);
-    for (const neighbor of edges.get(v) || new Set()) {
-      if (!seen.has(neighbor)) stack.push(neighbor);
-    }
-  }
-  return Array.from(seen);
-}
-
-/** Would adding edge (a,b) close a loop? */
-function wouldCloseLoop(a: string, b: string, edges: Map<string, Set<string>>) {
-  // If b already reachable from a, adding (a,b) creates a cycle
-  const compA = getComponent(a, edges);
-  return compA.includes(b);
-}
-
-// ───────────────────────────────────────────────────────────────────────────────
-// Component
-// ───────────────────────────────────────────────────────────────────────────────
 const ConstraintManager: React.FC = () => {
   const { state, dispatch } = useApp();
 
-  // Selection/highlight state
-  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(null);
-  const [highlightedPair, setHighlightedPair] = useState<{ guest1: string; guest2: string } | null>(null);
-  const [highlightTimeout, setHighlightTimeout] = useState<number | null>(null);
-
-  // Conflicts
-  const [conflicts, setConflicts] = useState<ConstraintConflict[]>([]);
+  // — UI state
+  const [selectedGuest, setSelectedGuest] = useState<string | null>(null);
+  const [highlightedPair, setHighlightedPair] = useState<{guest1: string, guest2: string} | null>(null);
+  const [highlightTimeout, setHighlightTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [conflicts, setConflicts] = useState<ConflictItem[]>([]);
   const [showConflicts, setShowConflicts] = useState(true);
-
-  // Device & UI
   const [isTouchDevice, setIsTouchDevice] = useState(false);
-  const gridRef = useRef<HTMLDivElement>(null);
-  
-  // Pagination (preserved)
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  
-  // Sorting (preserved)
   const [sortOption, setSortOption] = useState<SortOption>('as-entered');
-  
-  // Warning banner state (preserved)
   const [isWarningExpanded, setIsWarningExpanded] = useState(false);
   const [initialWarningShown, setInitialWarningShown] = useState(false);
   const [userHasInteractedWithWarning, setUserHasInteractedWithWarning] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
   
-  const isPremium = isPremiumSubscription(state.subscription);
+  const isPremium = isPremiumSubscription?.(state.subscription);
   
-  // Detect touch device (preserved)
+  // Touch detection
   useEffect(() => {
-    const checkTouchDevice = () =>
-      setIsTouchDevice('ontouchstart' in window || (navigator as any).maxTouchPoints > 0);
-    checkTouchDevice();
-    window.addEventListener('resize', checkTouchDevice);
-    return () => window.removeEventListener('resize', checkTouchDevice);
+    const checkTouch = () => setIsTouchDevice('ontouchstart' in window || (navigator as any).maxTouchPoints > 0);
+    checkTouch();
+    window.addEventListener('resize', checkTouch);
+    return () => window.removeEventListener('resize', checkTouch);
   }, []);
   
-  // Debounced conflict detection (preserved)
-  const updateConflicts = useDebouncedCallback(async () => {
-    if (state.guests.length < 2 || state.tables.length === 0) {
-      setConflicts([]);
-      return;
+  // ——————————————————————————————————————————————
+  // BOUNDARY NORMALIZATION SHIM (duplicate-safe)
+  const idsByName = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const g of state.guests as Guest[]) {
+      const k = squash(g.name);
+      const a = m.get(k);
+      a ? a.push(g.id) : m.set(k, [g.id]);
     }
+    return m;
+  }, [state.guests]);
 
-    // Build lookups once per run
-    const { idSet, nameToIds, singleNameToId } = buildNameLookup(state.guests as Array<{id:string; name:string}>);
+  const validIds = useMemo(() => new Set((state.guests as Guest[]).map(g => g.id)), [state.guests]);
 
-    // Normalize the possibly-mixed state to stable ID space
-    const normConstraints = normalizeConstraintsToIds(
-      state.constraints as any,
-      idSet,
-      nameToIds,
-      singleNameToId
-    );
+  const toId = (k: string): string | null => {
+    if (validIds.has(k)) return k; // already an id
+    const arr = idsByName.get(squash(k));
+    return arr && arr.length === 1 ? arr[0] : null; // only map unambiguous names
+  };
 
-    const normAdjacents = normalizeAdjacentsToIds(
-      state.adjacents as any,
-      idSet,
-      nameToIds,
-      singleNameToId
-    );
+  const normConstraints = useMemo(() => {
+    const out: Record<string, Record<string, 'must' | 'cannot'>> = {};
+    for (const [k1, row] of Object.entries(state.constraints || {})) {
+      const i1 = toId(String(k1)); if (!i1) continue;
+      for (const [k2, v] of Object.entries(row || {})) {
+        if (v !== 'must' && v !== 'cannot') continue;
+        const i2 = toId(String(k2)); if (!i2 || i1 === i2) continue;
+        (out[i1] ||= {})[i2] = v; (out[i2] ||= {})[i1] = v; // enforce symmetry at the boundary only
+      }
+    }
+    return out;
+  }, [state.constraints, idsByName, validIds]);
 
-    // IMPORTANT: match actual signature used in this codebase
-    const result = detectConstraintConflicts(
-      state.guests,
-      normConstraints,
-      state.tables,
-      true,
-      normAdjacents
-    );
+  const normAdjacents = useMemo(() => {
+    const acc: Record<string, Set<string>> = {};
+    for (const [ka, vv] of Object.entries(state.adjacents || {})) {
+      const ia = toId(String(ka)); if (!ia) continue;
+      const partners = Array.isArray(vv) ? vv : Object.keys(vv || {});
+      for (const kb of partners) {
+        const ib = toId(String(kb)); if (!ib || ia === ib) continue;
+        (acc[ia] ||= new Set()).add(ib);
+        (acc[ib] ||= new Set()).add(ia);
+      }
+    }
+    return Object.fromEntries(Object.entries(acc).map(([k, set]) => [k, Array.from(set).slice(0, 2)])) as Record<string, string[]>;
+  }, [state.adjacents, idsByName, validIds]);
 
-    setConflicts(result || []);
+  // ——————————————————————————————————————————————
+  // Conflict detection (debounced) using SAFE wrapper
+  const updateConflicts = useDebouncedCallback(() => {
+    if ((state.guests as Guest[]).length < 2) { setConflicts([]); return; }
+    const result = detectConstraintConflictsSafe(state.guests, normConstraints, state.tables, true, normAdjacents);
+    setConflicts(result);
   }, 300);
 
-  useEffect(() => {
-    updateConflicts();
-  }, [state.guests, state.constraints, state.tables, state.adjacents, updateConflicts]);
+  useEffect(() => { updateConflicts(); }, [state.guests, state.tables, normConstraints, normAdjacents, updateConflicts]);
 
-  // Smart suggestions (preserved)
-  const smartSuggestions = useMemo((): string[] => {
-    const suggestions: string[] = [];
-    if (conflicts.length > 0) {
-      suggestions.push(`Resolve ${conflicts.length} constraint conflicts to improve seating generation.`);
-    }
-    return suggestions;
-  }, [conflicts]);
-
-  // Export constraints (preserved)
-  const exportJSON = React.useCallback(() => {
-    const data = JSON.stringify(
-      { 
-        guests: state.guests.length, 
-        constraints: state.constraints, 
-        adjacents: state.adjacents, 
-        exportedAt: new Date().toISOString(),
-      },
-      null,
-      2
-    );
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `seatyr-constraints-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [state.guests, state.constraints, state.adjacents]);
-
-  // Resolve conflict (IDs; preserved UX)
-  const resolveConflict = React.useCallback(
-    (key1: string, key2: string) => {
-      const name1 = state.guests.find((g) => g.id === key1)?.name || key1;
-      const name2 = state.guests.find((g) => g.id === key2)?.name || key2;
-
-      if (window.confirm(`Remove constraint between ${name1} and ${name2}? This may clear existing seating plans.`)) {
-        dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: key1, guest2: key2, value: '' } });
-      purgeSeatingPlans();
-    }
-    },
-    [dispatch, state.guests]
+  const safeConflicts = useMemo(
+    () => conflicts.filter(c => Array.isArray(c.affectedGuests) && new Set(c.affectedGuests).size >= 2),
+    [conflicts]
   );
 
-  // Warning expand/collapse behavior (preserved)
+  // ——————————————————————————————————————————————
+  // Suggestions (optional UX)
+  const smartSuggestions = useMemo((): string[] => {
+    const suggestions: string[] = [];
+    if (safeConflicts.length > 0) {
+      suggestions.push(`Resolve ${safeConflicts.length} constraint conflicts to improve seating generation.`);
+    }
+    const constraintCount = Object.keys(state.constraints || {}).reduce((count, key) =>
+      count + Object.keys((state.constraints as any)[key]).length, 0) / 2;
+    if (constraintCount === 0 && (state.guests as Guest[]).length > 10) {
+      suggestions.push('Consider adding "must sit together" constraints for families or friends.');
+    }
+    if (constraintCount > (state.guests as Guest[]).length * 2) {
+      suggestions.push('You have many constraints. Consider if all are necessary for flexibility.');
+    }
+    return suggestions;
+  }, [safeConflicts.length, state.constraints, state.guests]);
+
+  // ——————————————————————————————————————————————
+  // Pagination UX
+  useEffect(() => {
+    setCurrentPage(0);
+    if (isPremium && (state.guests as Guest[]).length > GUEST_THRESHOLD) {
+      setTotalPages(Math.ceil((state.guests as Guest[]).length / GUESTS_PER_PAGE));
+    } else {
+      setTotalPages(1);
+    }
+  }, [state.guests, isPremium]);
+
+  // Reset pagination when sort option changes to avoid empty pages
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [sortOption]);
+
   useEffect(() => {
     setIsWarningExpanded(false);
-    if (isPremium && state.guests.length > GUEST_THRESHOLD && !initialWarningShown) {
+    if (isPremium && (state.guests as Guest[]).length > GUEST_THRESHOLD && !initialWarningShown) {
       setInitialWarningShown(true);
     }
     setUserHasInteractedWithWarning(false);
   }, []);
 
   useEffect(() => {
-    const needsPagination = isPremium && state.guests.length > GUEST_THRESHOLD;
+    const needsPagination = isPremium && (state.guests as Guest[]).length > GUEST_THRESHOLD;
     if (needsPagination) {
       if (!userHasInteractedWithWarning && !initialWarningShown) {
         setIsWarningExpanded(true);
         setInitialWarningShown(true);
-        const timer = window.setTimeout(() => {
-          if (!userHasInteractedWithWarning) setIsWarningExpanded(false);
-        }, 10000);
-        return () => window.clearTimeout(timer);
+        const timer = setTimeout(() => { if (!userHasInteractedWithWarning) setIsWarningExpanded(false); }, 10000);
+        return () => clearTimeout(timer);
       }
     } else {
       setInitialWarningShown(false);
     }
-  }, [state.guests.length, isPremium, userHasInteractedWithWarning, initialWarningShown]);
-  
-  // Reset pagination when guest list changes (preserved)
-  useEffect(() => {
-    setCurrentPage(0);
-    if (isPremium && state.guests.length > GUEST_THRESHOLD) {
-      setTotalPages(Math.ceil(state.guests.length / GUESTS_PER_PAGE));
-    } else {
-      setTotalPages(1);
+  }, [state.guests, isPremium, userHasInteractedWithWarning, initialWarningShown]);
+
+  // ——————————————————————————————————————————————
+  // Sorting helpers
+  const getGuestTableAssignment = (guestName: string) => {
+    if (!isPremium) return null;
+    if ((state as any).assignments && (state as any).assignments[guestName]) {
+      const assignedTableIds = (state as any).assignments[guestName].split(',').map((t: string) => t.trim());
+      const tablenames = assignedTableIds.map((id: string) => {
+        const numId = parseInt(id);
+        if (!isNaN(numId)) {
+          const table = state.tables.find((t: any) => t.id === numId);
+          return table?.name ? `${table.name} (${numId})` : `${numId}`;
+        }
+        return id;
+      });
+      return { text: tablenames.join(', '), type: 'assigned' as const };
     }
-  }, [state.guests.length, isPremium]);
-  
-  const handleToggleWarning = () => {
-    setIsWarningExpanded((prev) => !prev);
-    setUserHasInteractedWithWarning(true);
+    if ((state as any).seatingPlans && state.seatingPlans.length > 0) {
+      const plan = state.seatingPlans[state.currentPlanIndex];
+      for (const table of plan.tables) {
+        const found = table.seats.find((s: any) => s.name === guestName);
+        if (found) {
+          const tableObj = state.tables.find((t: any) => t.id === table.id);
+          const tableName = tableObj?.name ? `${tableObj.name} (${table.id})` : `${table.id}`;
+          return { text: tableName, type: 'plan' as const };
+        }
+      }
+    }
+    return { text: 'unassigned', type: 'none' as const };
   };
 
-  // Purge plans when rules change (preserved)
+  const getAdjacentCount = (guestName: string) => (state.adjacents?.[guestName]?.length || 0);
+
+  const getSortedGuests = (): Guest[] => {
+    const guests = [...(state.guests as Guest[])];
+    if (!isPremium || sortOption === 'as-entered') return guests;
+
+    if (sortOption === 'first-name') {
+      return guests.sort((a, b) => {
+        const fa = squash(a.name.split(' ')[0] || '');
+        const fb = squash(b.name.split(' ')[0] || '');
+        return fa.localeCompare(fb);
+      });
+    }
+    if (sortOption === 'last-name') {
+      const getLast = (full: string) => getLastNameForSorting?.(full.split('&')[0].trim()) ?? full;
+      return guests.sort((a, b) => {
+        const la = squash(getLast(a.name));
+        const lb = squash(getLast(b.name));
+        return la.localeCompare(lb);
+      });
+    }
+    if (sortOption === 'current-table') {
+      if (!state.seatingPlans || state.seatingPlans.length === 0) return guests;
+      const plan = state.seatingPlans[state.currentPlanIndex];
+      const tableIndex: Record<string, number> = {};
+      for (const table of plan.tables) {
+        for (const seat of table.seats) {
+          const seatKey = squash(seat.name);
+          tableIndex[seatKey] = table.id;
+        }
+      }
+      return guests.sort((a, b) => {
+        const ta = tableIndex[squash(a.name)] ?? Number.MAX_SAFE_INTEGER;
+        const tb = tableIndex[squash(b.name)] ?? Number.MAX_SAFE_INTEGER;
+        if (ta === Number.MAX_SAFE_INTEGER && tb !== Number.MAX_SAFE_INTEGER) return 1;
+        if (tb === Number.MAX_SAFE_INTEGER && ta !== Number.MAX_SAFE_INTEGER) return -1;
+        if (ta !== tb) return ta - tb;
+        // Stable tie-breaker by normalized name
+        const na = squash(a.name);
+        const nb = squash(b.name);
+        return na.localeCompare(nb);
+      });
+    }
+    return guests;
+  };
+
+  // ——————————————————————————————————————————————
+  // Grid construction
+  const shouldShowPagination = (state.guests as Guest[]).length >= GUEST_THRESHOLD;
+
+  const handleNavigatePage = (delta: number) => setCurrentPage(p => Math.max(0, Math.min(totalPages - 1, p + delta)));
+
+  let longPressTimer: NodeJS.Timeout;
+  const handleLongPress = (e: React.TouchEvent, guestName: string) => { e.preventDefault(); longPressTimer = setTimeout(() => handleGuestSelect(guestName), 500); };
+  const clearLongPressTimer = () => { if (longPressTimer) clearTimeout(longPressTimer); };
+
   const purgeSeatingPlans = () => {
-    dispatch({ type: 'SET_SEATING_PLANS', payload: [] });
-    dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 });
-    localStorage.setItem('seatyr_current_setting_name', 'Unsaved');
-    dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false });
-  };
-  
-  // Helpers: stable name/id maps
-  const nameById = useMemo(() => new Map(state.guests.map((g) => [g.id, g.name])), [state.guests]);
-  const idByName = useMemo(() => new Map(state.guests.map((g) => [g.name, g.id])), [state.guests]);
-
-  // Sorting helpers (IDs internally; names only for display)
-  type Plan = { tables: { id: number; seats: any[] }[] } | null | undefined;
-  function currentTableKey(guestId: string, plan: Plan, assigns?: Record<string, string>) {
-    const guestName = nameById.get(guestId);
-    if (guestName && plan?.tables) {
-      for (const t of plan.tables) {
-        const names = (t.seats ?? [])
-          .map((s: any) => (typeof s === 'string' ? s : s?.name))
-          .filter(Boolean);
-        if (names.includes(guestName)) return t.id;
-      }
-    }
-    const raw = assigns?.[guestId];
-    if (raw) {
-      const first = raw
-        .split(',')
-        .map((s) => parseInt(s.trim(), 10))
-        .find((n) => !Number.isNaN(n));
-      if (typeof first === 'number') return first;
-    }
-    return Number.POSITIVE_INFINITY;
-  }
-
-  const getSortedGuests = () => {
-    if (sortOption === 'as-entered') return [...state.guests];
-    const arr = [...state.guests];
-    switch (sortOption) {
-      case 'first-name':
-        return arr.sort((a, b) => a.name.localeCompare(b.name));
-      case 'last-name':
-        return arr.sort(
-          (a, b) => getLastNameForSorting(a.name).localeCompare(getLastNameForSorting(b.name)) || a.name.localeCompare(b.name)
-        );
-      case 'current-table':
-        return arr.sort(
-          (a, b) =>
-            currentTableKey(a.id, state.seatingPlans?.[state.currentPlanIndex], state.assignments) -
-              currentTableKey(b.id, state.seatingPlans?.[state.currentPlanIndex], state.assignments) ||
-            a.name.localeCompare(b.name)
-        );
-      default:
-        return arr;
-    }
+    dispatch({ type: 'SET_SEATING_PLANS', payload: [] } as any);
+    dispatch({ type: 'SET_CURRENT_PLAN_INDEX', payload: 0 } as any);
+    try { localStorage.setItem('seatyr_current_setting_name', 'Unsaved'); } catch {}
+    dispatch({ type: 'SET_LOADED_SAVED_SETTING', payload: false } as any);
   };
 
-  // Pagination helpers (preserved)
-  const shouldShowPagination = state.guests.length >= GUEST_THRESHOLD;
-  const handleNavigatePlan = (delta: number) => {
-    setCurrentPage((prev) => Math.max(0, Math.min(totalPages - 1, prev + delta)));
-  };
+  const handleToggleConstraint = (guest1: string, guest2: string) => {
+    setSelectedGuest(null); setHighlightedPair(null);
+    if (highlightTimeout) { clearTimeout(highlightTimeout); setHighlightTimeout(null); }
 
-  // Long-press (preserved UX)
-  let longPressTimer: number | undefined;
-  const handleLongPress = (e: React.TouchEvent, guestId: string) => {
-    e.preventDefault();
-    longPressTimer = window.setTimeout(() => {
-      handleGuestSelect(guestId);
-    }, 500);
-  };
-  const clearLongPressTimer = () => {
-    if (longPressTimer) window.clearTimeout(longPressTimer);
-  };
+    const currentValue = (state.constraints?.[guest1]?.[guest2] ?? '') as '' | 'must' | 'cannot';
+    let nextValue: '' | 'must' | 'cannot';
+    if (currentValue === '') nextValue = 'must';
+    else if (currentValue === 'must') { if (state.adjacents?.[guest1]?.includes(guest2)) dispatch({ type: 'REMOVE_ADJACENT', payload: { guest1, guest2 } } as any); nextValue = 'cannot'; }
+    else nextValue = '';
 
-  // Toggle constraint cell (IDs only; preserved precedence cycling)
-  const handleToggleConstraint = (guest1Id: string, guest2Id: string) => {
-    const a = keyOf(guest1Id), b = keyOf(guest2Id);
-    if (a === b) return;
-    setSelectedGuestId(null);
-    setHighlightedPair(null);
-    if (highlightTimeout) {
-      window.clearTimeout(highlightTimeout);
-      setHighlightTimeout(null);
-    }
-
-    const currentValue = state.constraints[a]?.[b] || '';
-    const nextValue: 'must' | 'cannot' | '' = currentValue === '' ? 'must' : currentValue === 'must' ? 'cannot' : '';
-    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: nextValue } });
+    dispatch({ type: 'SET_CONSTRAINT', payload: { guest1, guest2, value: nextValue } } as any);
     purgeSeatingPlans();
   };
 
-  // Get adjacency count for a guestId (preserved indicator)
-  const getAdjacentCount = (guestId: string) => {
-    const key = keyOf(guestId);
-    const raw = state.adjacents[key];
-    return Array.isArray(raw) ? raw.length : (raw ? Object.keys(raw).length : 0);
-  };
-
-  // Select two guests to set adjacency (IDs only) with rule enforcement
-  const handleGuestSelect = (guestId: string) => {
-    if (selectedGuestId === null) {
-      setSelectedGuestId(guestId);
-      return;
-    }
-    if (selectedGuestId === guestId) {
-      setSelectedGuestId(null);
-      return;
-    }
-
-    const a = keyOf(selectedGuestId);
-    const b = keyOf(guestId);
-
-    // Degree cap: each node ≤ 2
-    const degA = getAdjacentCount(a);
-    const degB = getAdjacentCount(b);
-    if (degA >= 2 || degB >= 2) {
-      alert('Error: That would exceed the limit of 2 adjacent-pairings.');
-      setSelectedGuestId(null);
-      return;
-    }
-
-    // Graph checks
-    const { byId, edges } = buildAdjacencyGraph(state.guests, state.adjacents);
-
-    // Closed-loop capacity rule: if adding (a,b) closes a loop, the component size must match an existing table capacity
-    if (wouldCloseLoop(a, b, edges)) {
-      const componentNodes = getComponent(a, edges);
-      const totalSeats = componentNodes.reduce((sum, id) => sum + (byId.get(id)?.count || 0), 0);
-      const hasExactCapacity = state.tables.some((t) => t.seats === totalSeats);
-      if (!hasExactCapacity) {
-        alert(
-          `Error: Closing this loop would create a chain of ${totalSeats} seats, but no table has exactly that capacity.`
-        );
-        setSelectedGuestId(null);
-        return;
-      }
-    }
-
-    // Create adjacency
-    dispatch({ type: 'SET_ADJACENT', payload: { guest1: a, guest2: b } });
-
-    // Clear 'cannot' if present (precedence rule)
-    if (state.constraints[a]?.[b] === 'cannot' || state.constraints[b]?.[a] === 'cannot') {
-      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: a, guest2: b, value: '' } });
-    }
-
-    // Highlight pair
-    setHighlightedPair({ guest1: a, guest2: b });
-    if (highlightTimeout) window.clearTimeout(highlightTimeout);
-    const timeoutId = window.setTimeout(() => setHighlightedPair(null), 3000);
-    setHighlightTimeout(timeoutId);
-
+  const handleGuestSelect = (guestName: string) => {
+    if (selectedGuest === null) { setSelectedGuest(guestName); return; }
+    if (selectedGuest !== guestName) {
+      const k1 = selectedGuest; const k2 = guestName;
+      dispatch({ type: 'SET_CONSTRAINT', payload: { guest1: k1, guest2: k2, value: 'must' } } as any);
+      dispatch({ type: 'SET_ADJACENT', payload: { guest1: k1, guest2: k2 } } as any);
+      setHighlightedPair({ guest1: k1, guest2: k2 }); setSelectedGuest(null);
+      const timeout = setTimeout(() => setHighlightedPair(null), 3000);
+      if (highlightTimeout) clearTimeout(highlightTimeout);
+      setHighlightTimeout(timeout);
     purgeSeatingPlans();
-    setSelectedGuestId(null);
+    } else { setSelectedGuest(null); }
   };
 
-  // Constraint grid (preserved layout; switched internals to IDs)
   const constraintGrid = useMemo(() => {
     const guests = getSortedGuests();
-    
-    // Validate constraint and adjacency state
-    if (!guests || guests.length === 0) {
-      return (
-        <div className="text-center py-8 text-gray-500">
-          No guests added yet. Add guests to create constraints.
-        </div>
-      );
-    }
-    
-    // Ensure constraints and adjacents are valid objects with comprehensive validation
-    const constraints = state.constraints || {};
-    const adjacents = state.adjacents || {};
-    
-    // Comprehensive validation with detailed error reporting
-    if (typeof constraints !== 'object' || constraints === null || Array.isArray(constraints)) {
-      console.error('Invalid constraints state:', constraints, 'Type:', typeof constraints);
-      return (
-        <div className="text-center py-8 text-red-500">
-          <div className="font-bold mb-2">Constraint Data Error</div>
-          <div className="text-sm">Invalid constraint data structure detected.</div>
-          <div className="text-sm mt-1">Type: {typeof constraints}</div>
-          <button 
-            className="danstyle1c-btn mt-3" 
-            onClick={() => window.location.reload()}
-          >
-            Reload Page
-          </button>
-        </div>
-      );
-    }
-    
-    if (typeof adjacents !== 'object' || adjacents === null || Array.isArray(adjacents)) {
-      console.error('Invalid adjacents state:', adjacents, 'Type:', typeof adjacents);
-      return (
-        <div className="text-center py-8 text-red-500">
-          <div className="font-bold mb-2">Adjacency Data Error</div>
-          <div className="text-sm">Invalid adjacency data structure detected.</div>
-          <div className="text-sm mt-1">Type: {typeof adjacents}</div>
-          <button 
-            className="danstyle1c-btn mt-3" 
-            onClick={() => window.location.reload()}
-          >
-            Reload Page
-          </button>
-        </div>
-      );
-    }
+    if (guests.length === 0) return (
+      <div className="text-center py-8 text-gray-500">No guests added yet. Add guests to create constraints.</div>
+    );
 
-    // Pagination slice (columns)
     const needsPagination = isPremium && guests.length > GUEST_THRESHOLD;
-    const totalPagesCalc = needsPagination ? Math.ceil(guests.length / GUESTS_PER_PAGE) : 1;
-    const startIndex = needsPagination ? currentPage * GUESTS_PER_PAGE : 0;
-    const endIndex = needsPagination ? Math.min(startIndex + GUESTS_PER_PAGE, guests.length) : guests.length;
-    const displayGuests = guests.slice(startIndex, endIndex);
+    const displayGuests = needsPagination
+      ? guests.slice(currentPage * GUESTS_PER_PAGE, Math.min((currentPage + 1) * GUESTS_PER_PAGE, guests.length))
+      : guests;
 
-    // Header row
-    const headerRow: React.ReactNode[] = [
-      <th 
-        key="corner" 
-        className="bg-indigo-50 font-medium p-2 border border-[#586D78] border-2 sticky top-0 left-0 z-30"
-      >
-        Guest Names
-      </th>,
+    const headerRow: JSX.Element[] = [
+      <th key="corner" className="bg-indigo-50 font-medium p-2 border border-gray-500 sticky top-0 left-0 z-30">Guest Names</th>
     ];
 
-    displayGuests.forEach((guest) => {
-      const adjacentCount = getAdjacentCount(keyOf(guest));
-      const isSelected = selectedGuestId === keyOf(guest);
-      const isHighlighted =
-        !!highlightedPair && (highlightedPair.guest1 === keyOf(guest) || highlightedPair.guest2 === keyOf(guest));
-
-      const adjacentIndicator =
-        adjacentCount > 0 ? (
-          <span
-            className="text-[#b3b508] font-bold ml-1"
-            title={`Adjacent to: ${(state.adjacents[keyOf(guest)] || [])
-              .map((name) => name)
-              .join(', ')}`}
-            style={{ fontSize: '0.7em' }}
-          >
-            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
-          </span>
-        ) : null;
-      
+    displayGuests.forEach((guest, index) => {
+      const adjacentCount = getAdjacentCount(guest.name);
+      const isSelected = selectedGuest === guest.name;
+      const isHighlighted = highlightedPair && (highlightedPair.guest1 === guest.name || highlightedPair.guest2 === guest.name);
       headerRow.push(
-        <th 
-          key={`col-${guest.id}`}
-          className={`p-2 font-medium sticky top-0 z-20 min-w-[100px] cursor-pointer transition-colors duration-200 border border-[#586D78] border-2 ${
-            isHighlighted ? 'bg-[#88abc6]' : isSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'
-          }`}
-          onDoubleClick={() => handleGuestSelect(keyOf(guest))}
-          onTouchStart={(e) => handleLongPress(e, keyOf(guest))}
-          onTouchEnd={clearLongPressTimer}
-          data-id={guest.id}
-        >
-          <div
-            className="max-w-[100px] leading-snug"
-            style={{ minHeight: '4.5rem', wordWrap: 'break-word', whiteSpace: 'normal', lineHeight: '1.3' }}
-          >
-            <FormatGuestName name={guest.name} />
-            {adjacentIndicator}
-          </div>
+        <th key={`col-${index}`} className={`p-2 font-medium sticky top-0 z-20 min-w-[100px] cursor-pointer border border-gray-500 ${isHighlighted ? 'bg-yellow-300' : isSelected ? 'bg-gray-700 text-white' : 'bg-indigo-50 text-gray-700 hover:bg-indigo-100'}`}
+            onDoubleClick={() => handleGuestSelect(guest.name)} onTouchStart={(e) => handleLongPress(e, guest.name)} onTouchEnd={() => clearLongPressTimer()} data-name={guest.name}>
+          <div className="truncate max-w-[100px]">{guest.name}{adjacentCount > 0 && <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${(state.adjacents?.[guest.name] || []).join(', ')}`}>{adjacentCount === 1 ? '*' : '**'}</span>}</div>
         </th>
       );
     });
     
-    const grid: React.ReactNode[] = [<tr key="header">{headerRow}</tr>];
+    const grid: JSX.Element[] = [<tr key="header">{headerRow}</tr>];
 
-    // Rows
-    guests.forEach((g1, rowIndex) => {
-      const isRowSelected = selectedGuestId === keyOf(g1);
-      const isRowHighlighted =
-        !!highlightedPair && (highlightedPair.guest1 === keyOf(g1) || highlightedPair.guest2 === keyOf(g1));
-      const row: React.ReactNode[] = [];
+    guests.forEach((guest1, rowIndex) => {
+      const isHighlighted = highlightedPair && (highlightedPair.guest1 === guest1.name || highlightedPair.guest2 === guest1.name);
+      const isSelected = selectedGuest === guest1.name;
+      const adjacentCount = getAdjacentCount(guest1.name);
 
-      // Left sticky cell (name, party size, table assignment)
-      const adjacentCount = getAdjacentCount(g1.id);
-      const adjacentIndicator =
-        adjacentCount > 0 ? (
-          <span
-            className="text-[#b3b508] font-bold ml-1"
-            title={`Adjacent to: ${(state.adjacents[keyOf(g1)] || [])
-              .map((name) => name)
-              .join(', ')}`}
-            style={{ fontSize: '0.7em' }}
-          >
-            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
-          </span>
-        ) : null;
-      
-      row.push(
-        <td 
-          key={`row-${rowIndex}`}
-          className={`p-2 font-medium sticky left-0 z-10 min-w-[280px] cursor-pointer transition-colors duration-200 border-r border-[#586D78] border border-[#586D78] border-2 ${
-            isRowHighlighted ? 'bg-[#88abc6]' : isRowSelected ? 'bg-[#586D78] text-white' : 'bg-indigo-50 text-[#586D78] hover:bg-indigo-100'
-          }`}
-          onDoubleClick={() => handleGuestSelect(keyOf(g1))}
-          onTouchStart={(e) => handleLongPress(e, keyOf(g1))}
-          onTouchEnd={clearLongPressTimer}
-          data-id={g1.id}
-        >
+      const row: JSX.Element[] = [
+        <td key={`row-${rowIndex}`} className={`p-2 font-medium sticky left-0 z-10 min-w-[140px] cursor-pointer border border-gray-500 ${isHighlighted ? 'bg-yellow-300' : isSelected ? 'bg-gray-700 text-white' : 'bg-indigo-50 text-gray-700 hover:bg-indigo-100'}`}
+            onDoubleClick={() => handleGuestSelect(guest1.name)} onTouchStart={(e) => handleLongPress(e, guest1.name)} onTouchEnd={() => clearLongPressTimer()} data-name={guest1.name}>
           <div>
-            <div className="truncate max-w-[280px]">
-              <FormatGuestName name={g1.name} />
-              {adjacentIndicator}
-            </div>
-            {/* Party size display */}
-            <div className="text-xs text-[#586D78] mt-1">
-              Party size: {g1.count} {g1.count === 1 ? 'person' : 'people'}
-              </div>
-            {/* Table assignment line (centralized formatter; ID-based) */}
-            <div className="text-xs text-[#586D78] mt-1">
-              {formatTableAssignment(state.assignments, state.tables, keyOf(g1))}
-                  </div>
+            <div className="truncate max-w-[140px]">{guest1.name}{adjacentCount > 0 && <span className="text-yellow-600 font-bold ml-1" title={`Adjacent to: ${(state.adjacents?.[guest1.name] || []).join(', ')}`}>{adjacentCount === 1 ? '*' : '**'}</span>}</div>
+            {guest1.count && guest1.count > 1 && (<div className="text-xs text-gray-700 font-medium">Party size: {guest1.count} {guest1.count === 1 ? 'person' : 'people'}</div>)}
+            {isPremium && (() => { const a = getGuestTableAssignment(guest1.name); if (!a) return null; const color = a.type === 'assigned' ? 'text-blue-600' : a.type === 'plan' ? 'text-green-600' : 'text-gray-500'; return <div className={`text-xs ${color} truncate max-w-[140px]`} title={a.text}>{a.text}</div>; })()}
           </div>
         </td>
-      );
+      ];
 
-      // Data cells (only for visible column slice)
-      displayGuests.forEach((g2) => {
-        const isDiagonal = keyOf(g1) === keyOf(g2);
-        if (isDiagonal) {
-          row.push(
-            <td key={`cell-${g1.id}-${g2.id}`} className="p-2 border border-[#586D78] border-2 bg-gray-800" />
-          );
-          return;
-        }
+      displayGuests.forEach((guest2, colIndexOnPage) => {
+        if (guest1.name === guest2.name) {
+          row.push(<td key={`cell-${rowIndex}-${colIndexOnPage}`} className="p-2 border border-gray-500 bg-gray-800" />);
+        } else {
+          const constraintValue = (state.constraints?.[guest1.name]?.[guest2.name] || '') as '' | 'must' | 'cannot';
+          const isAdjacent = !!state.adjacents?.[guest1.name]?.includes(guest2.name) || !!state.adjacents?.[guest2.name]?.includes(guest1.name);
 
-        // Safe constraint and adjacency checks with validation
-        const constraints = state.constraints || {};
-        const adjacents = state.adjacents || {};
-        
-        // Ensure we have valid objects and safe access
-        const k1 = keyOf(g1); const k2 = keyOf(g2);
-        const constraintValue = (typeof constraints === 'object' && constraints !== null && !Array.isArray(constraints)) 
-          ? (constraints[k1]?.[k2] || '') 
-          : '';
-          
-        const isAdjacent = (typeof adjacents === 'object' && adjacents !== null && !Array.isArray(adjacents))
-          ? ((adjacents[k1] || []).includes(k2) || (adjacents[k2] || []).includes(k1))
-          : false;
+          let cellContent: React.ReactNode = null; let bgColor = '';
+          if (constraintValue === 'must') { bgColor = 'bg-[#22cf04]'; cellContent = isAdjacent ? (<div className="flex items-center justify-center space-x-1"><span className="font-bold">*</span><span className="font-bold">&</span><span className="font-bold">*</span></div>) : (<span className="font-bold">&</span>); }
+          else if (constraintValue === 'cannot') { bgColor = 'bg-[#e6130b]'; cellContent = <span className="font-bold">X</span>; }
 
-        // Precedence: cannot > adjacency > must > empty
-        let cellContent: React.ReactNode = null;
-          let bgColor = '';
-          
-          if (constraintValue === 'cannot') {
-            bgColor = 'bg-[#e6130b]';
-            cellContent = <span className="text-black font-bold">X</span>;
-        } else if (isAdjacent) {
-          bgColor = 'bg-[#22cf04]';
-            cellContent = (
-              <div className="flex items-center justify-center space-x-1">
-              <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>
-                ⭐
-              </span>
-                <span className="text-black font-bold">&</span>
-              <span className="text-[#b3b508] font-bold" style={{ fontSize: '0.7em' }}>
-                ⭐
-              </span>
-              </div>
-            );
-          } else if (constraintValue === 'must') {
-            bgColor = 'bg-[#22cf04]';
-            cellContent = <span className="text-black font-bold">&</span>;
-        }
-
-        const isCellHighlighted =
-          !!highlightedPair &&
-          ((highlightedPair.guest1 === keyOf(g1) && highlightedPair.guest2 === keyOf(g2)) ||
-            (highlightedPair.guest1 === keyOf(g2) && highlightedPair.guest2 === keyOf(g1)));
-        if (isCellHighlighted) bgColor = 'bg-[#88abc6]';
+          const isCellHighlighted = highlightedPair && ((highlightedPair.guest1 === guest1.name && highlightedPair.guest2 === guest2.name) || (highlightedPair.guest1 === guest2.name && highlightedPair.guest2 === guest1.name));
+          if (isCellHighlighted) bgColor = 'bg-yellow-300';
           
           row.push(
-            <td
-            key={`cell-${g1.id}-${g2.id}`}
-              className={`p-2 border border-[#586D78] border-2 cursor-pointer transition-colors duration-200 text-center ${bgColor}`}
-            onClick={() => handleToggleConstraint(keyOf(g1), keyOf(g2))}
-            data-guest1={keyOf(g1)}
-            data-guest2={keyOf(g2)}
-            >
+            <td key={`cell-${rowIndex}-${colIndexOnPage}`} className={`p-2 border border-gray-500 cursor-pointer text-center ${bgColor}`} onClick={() => handleToggleConstraint(guest1.name, guest2.name)} data-guest1={guest1.name} data-guest2={guest2.name}>
               {cellContent}
             </td>
           );
+        }
       });
 
-      grid.push(<tr key={`row-${g1.id}`}>{row}</tr>);
+      grid.push(<tr key={`row-${rowIndex}`}>{row}</tr>);
     });
 
-    // Page number controls (preserved)
     const renderPageNumbers = () => {
-      if (totalPagesCalc <= 9) {
-        return Array.from({ length: totalPagesCalc }, (_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrentPage(i)}
-            className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-8' : 'danstyle1c-btn mx-1 w-8'}
-          >
+      if (totalPages <= 9) {
+        return Array.from({ length: totalPages }, (_, i) => (
+          <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-8' : 'danstyle1c-btn mx-1 w-8'}>
             {i + 1}
           </button>
         ));
       }
-
-      const pageButtons: React.ReactNode[] = [];
-      for (let i = 0; i < 3; i++) {
-        if (i < totalPagesCalc) {
-          pageButtons.push(
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i)}
-              className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-8' : 'danstyle1c-btn mx-1 w-8'}
-            >
-              {i + 1}
-            </button>
-          );
-        }
-      }
+      const buttons: JSX.Element[] = [];
+      for (let i = 0; i < 3; i++) if (i < totalPages) buttons.push(
+        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-8' : 'danstyle1c-btn mx-1 w-8'}>{i + 1}</button>
+      );
       if (currentPage > 2) {
-        pageButtons.push(<span key="ellipsis1" className="mx-1">...</span>);
-        if (currentPage < totalPagesCalc - 3) {
-          pageButtons.push(
-            <button
-              key={currentPage}
-              onClick={() => setCurrentPage(currentPage)}
-              className="danstyle1c-btn selected mx-1 w-8"
-            >
-              {currentPage + 1}
-            </button>
-          );
-        }
-      }
-      if (currentPage < totalPagesCalc - 3) {
-        pageButtons.push(<span key="ellipsis2" className="mx-1">...</span>);
-      }
-      for (let i = Math.max(3, totalPagesCalc - 3); i < totalPagesCalc; i++) {
-        pageButtons.push(
-          <button
-            key={i}
-            onClick={() => setCurrentPage(i)}
-            className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-8' : 'danstyle1c-btn mx-1 w-8'}
-          >
-            {i + 1}
-          </button>
+        buttons.push(<span key="ellipsis1" className="mx-1">...</span>);
+        if (currentPage < totalPages - 3) buttons.push(
+          <button key={currentPage} onClick={() => setCurrentPage(currentPage)} className="danstyle1c-btn selected mx-1 w-8">{currentPage + 1}</button>
         );
       }
-      return pageButtons;
+      if (currentPage < totalPages - 3) buttons.push(<span key="ellipsis2" className="mx-1">...</span>);
+      for (let i = Math.max(3, totalPages - 3); i < totalPages; i++) buttons.push(
+        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-8' : 'danstyle1c-btn mx-1 w-8'}>{i + 1}</button>
+      );
+      return buttons;
     };
-    
-    // Performance notice + pagination controls (preserved)
-    const paginationControls =
-      needsPagination && (
+
+    const paginationControls = needsPagination && (
       <div className="flex flex-col md:flex-row items-center justify-between py-4 border-t mt-4">
         <div className="flex items-center w-full justify-between">
-            <div className="pl-[280px]">
-            <button
-                onClick={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
-              disabled={currentPage === 0}
-              className="danstyle1c-btn w-24 mx-1"
-            >
-              <ChevronLeft className="w-4 h-4 mr-1" />
-              Previous
+          <div className="pl-[140px]">
+            <button onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0} className="danstyle1c-btn w-24 mx-1">
+              <ChevronLeft className="w-4 h-4 mr-1" /> Previous
             </button>
           </div>
             <div className="flex flex-wrap justify-center">{renderPageNumbers()}</div>
             <div className="pr-[10px]">
-            <button
-                onClick={() => setCurrentPage((prev) => Math.min(totalPagesCalc - 1, prev + 1))}
-                disabled={currentPage >= totalPagesCalc - 1}
-              className="danstyle1c-btn w-24 mx-1"
-            >
-              Next
-                <ChevronRight className="w-4 h-4 ml-2" />
+            <button onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1} className="danstyle1c-btn w-24 mx-1">
+              Next <ChevronRight className="w-4 h-4 ml-1" />
             </button>
           </div>
         </div>
       </div>
     );
     
-    const showPerformanceWarning = !isPremium && state.guests.length > 100 && state.guests.length <= GUEST_THRESHOLD;
+    const showPerformanceWarning = !isPremium && guests.length > 100 && guests.length <= GUEST_THRESHOLD;
     
     return (
       <div className="flex flex-col space-y-4">
         {showPerformanceWarning && (
-                  <div className="bg-[#88abc6] border border-[#586D78] rounded-md p-4 flex items-start">
-          <AlertCircle className="text-white mr-2 flex-shrink-0 mt-1" />
-          <div className="text-sm text-white">
+          <div className="bg-amber-50 border rounded-md p-4 flex items-start">
+            <AlertCircle className="text-amber-500 mr-2 flex-shrink-0 mt-1" />
+            <div className="text-sm text-amber-800">
               <p className="font-medium">Performance Notice</p>
-              <p>
-                You have {state.guests.length} guests, which may cause the constraint grid to be slow to render and
-                interact with.
-              </p>
-              <p className="mt-1">For better performance, consider working with smaller groups of guests.</p>
+              <p>You have {guests.length} guests; rendering may be slow.</p>
             </div>
           </div>
         )}
         
+        {needsPagination && (
+          <div className={`border rounded-md transition-all ${isWarningExpanded ? 'bg-amber-50 p-4' : 'bg-amber-50/50 px-4 py-2'}`}>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center">
+                {isWarningExpanded && <AlertCircle className="text-amber-500 mr-2 flex-shrink-0" />}
+                <p className={`text-sm ${isWarningExpanded ? 'text-amber-800' : 'text-amber-600'}`}>
+                  {isWarningExpanded ? 'Large Guest List Detected' : 'Large Guest List Pagination'}
+                </p>
+              </div>
+              <div className="flex items-center">
+                <button onClick={() => { setIsWarningExpanded(p => !p); setUserHasInteractedWithWarning(true); }} className="text-amber-600 hover:text-amber-800" aria-label="Toggle warning">
+                  {isWarningExpanded ? <X className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            {isWarningExpanded && (
+              <div className="mt-2 text-sm text-amber-800">
+                <p>For performance, the grid shows 10 columns at a time. Scroll vertically and use the buttons below to see all guests.</p>
+              </div>
+            )}
+          </div>
+        )}
 
-        
-        <div className="overflow-auto max-h-[60vh] border border-[#586D78] rounded-md relative">
-          <table className="w-full border-collapse bg-white">
-            <tbody>{grid}</tbody>
-          </table>
+        <div className="overflow-auto max-h-[60vh] border rounded-md relative">
+          <table className="w-full border-collapse bg-white"><tbody>{grid}</tbody></table>
         </div>
         
         {needsPagination && paginationControls}
       </div>
     );
-  }, [
-    state.guests,
-    state.constraints,
-    state.adjacents,
-    state.seatingPlans,
-    state.assignments,
-    state.tables,
-    state.currentPlanIndex,
-    isPremium,
-    selectedGuestId,
-    highlightedPair,
-    currentPage,
-    isWarningExpanded,
-    initialWarningShown,
-    sortOption,
-    nameById,
-  ]);
+  }, [state.guests, state.constraints, state.adjacents, selectedGuest, highlightedPair, currentPage, totalPages, sortOption, isPremium, state.seatingPlans, state.assignments, state.tables, state.currentPlanIndex, isWarningExpanded, initialWarningShown]);
 
+  // ——————————————————————————————————————————————
+  // Render
   return (
-    <div className="space-y-14">
-      <h2 className="text-2xl font-semibold text-[#586D78] mb-0">Rules Management</h2>
-
-
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-800 flex items-center">
+        <ClipboardList className="mr-2" /> Constraint Manager
+        {isPremium && (state as any).user && (
+          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2"><Crown className="w-4 h-4 mr-1" /> Premium</span>
+        )}
+      </h1>
       
       <Card>
-        <div className="space-y-14">
-          {/* Header with Hide/Show Conflicts button */}
-          <div className="flex justify-between items-start">
-            <div className="flex-1">
-          {showConflicts && conflicts.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4" style={{ width: '60%' }}>
-              <h3 className="flex items-center text-red-800 font-medium mb-2">
-                <AlertTriangle className="w-4 h-4 mr-1" />
-                Detected Conflicts ({conflicts.length})
-              </h3>
+        <div className="space-y-4">
+          {showConflicts && safeConflicts.length > 0 && (
+            <div className="bg-red-50 border rounded-lg p-4">
+              <h3 className="flex items-center text-red-800 font-medium mb-2"><AlertTriangle className="w-4 h-4 mr-1" /> Detected Conflicts ({safeConflicts.length})</h3>
               <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {conflicts.map((conflict) => (
-                  <div key={conflict.id} className="text-sm">
-                    <p className="text-red-700">{conflict.description}</p>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                          {conflict.affectedGuests.map((idA, idx) => {
-                        if (idx < conflict.affectedGuests.length - 1) {
-                              const idB = conflict.affectedGuests[idx + 1];
-                              const aName = nameById.get(idA) || idA;
-                              const bName = nameById.get(idB) || idB;
-                          return (
-                            <button
-                                  key={`${idA}-${idB}`}
-                                  onClick={() => resolveConflict(idA, idB)}
-                              className="text-xs text-indigo-600 hover:underline"
-                            >
-                                  Resolve ({aName} & {bName})
-                            </button>
-                          );
-                        }
-                        return null;
-                      })}
-                    </div>
+                {safeConflicts.map((c, i) => (
+                  <div key={i} className="text-sm">
+                    <p className="text-red-700">{c.description || c.message || c.type}</p>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
+          {smartSuggestions.length > 0 && (
+            <div className="bg-blue-50 border rounded-lg p-4">
+              <h3 className="flex items-center text-blue-800 font-medium mb-2"><CheckCircle className="w-4 h-4 mr-1" /> Smart Suggestions</h3>
+              <div className="space-y-2">
+                {smartSuggestions.map((s, i) => (
+                  <div key={i} className="flex items-center space-x-2 text-blue-700 text-sm">
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{s}</span>
                   </div>
-            
-            {/* Hide/Show Conflicts button in upper right - only show when conflicts exist */}
-            {conflicts.length > 0 && (
-              <button
-                onClick={() => setShowConflicts((prev) => !prev)}
-                className="danstyle1c-btn"
-                title={showConflicts ? 'Hide conflicts' : 'Show conflicts'}
-              >
-                {showConflicts ? 'Hide Conflicts' : 'Show Conflicts'}
-              </button>
-            )}
-          </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-
-
-          <div className="flex flex-col justify-center h-24">
-            <h3 className="text-lg font-semibold text-[#586D78] mb-0">How to use constraints:</h3>
-            
-            <ul className="list-disc pl-5 space-y-2 text-gray-600 text-[17px]">
-              <li>
-                Click a cell to cycle between constraints:
+          <div className="flex items-start space-x-4">
+            <Info className="text-gray-700 mt-1 flex-shrink-0" />
+            <div>
+              <h3 className="font-medium text-gray-800">How to use constraints:</h3>
+              <ul className="list-disc pl-5 space-y-1 text-gray-600 text-[15px] mt-2">
+                <li>Click a cell to cycle between constraints:
                   <div className="mt-1 flex space-x-4">
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-[#22cf04] border border-[#586D78] mr-1"></span> 
-                      Must sit at the same table
-                    </span>
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-[#e6130b] border border-[#586D78] mr-1"></span> 
-                      Cannot sit at the same table
-                    </span>
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-white border border-[#586D78] mr-1"></span> 
-                      No constraint
-                    </span>
+                    <span className="flex items-center"><span className="inline-block w-3 h-3 bg-[#22cf04] border mr-1"></span> Must sit at the same table</span>
+                    <span className="flex items-center"><span className="inline-block w-3 h-3 bg-[#e6130b] border mr-1"></span> Cannot sit at the same table</span>
+                    <span className="flex items-center"><span className="inline-block w-3 h-3 bg-white border mr-1"></span> No constraint</span>
                   </div>
                 </li>
-              
-              <div>
-                {/* Adjacent-Pairing Accordion repositioned here */}
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-[17px] font-medium text-gray-600">To set "Adjacent Seating" (guests sit right next to each other):</summary>
-                  <div className="mt-2 text-sm text-[#586D78] space-y-1">
-                    <p>Double-click a guest name to select it.</p>
-                    <p>Click another guest and the adjacency will be set automatically.</p>
-                    <p>Guests with adjacent constraints are marked with ⭐ (star emoji).</p>
+                <li>To set "Adjacent Seating" (sit right next to each other):
+                  <ol className="list-decimal pl-5 mt-1">
+                    <li>{isTouchDevice ? 'Long-press' : 'Double-click'} a guest name to select it</li>
+                    <li>Click another guest and the adjacency will be set automatically</li>
+                  </ol>
+                </li>
+                <li>Guests with adjacent constraints are marked with <span className="text-yellow-600 font-bold">*</span></li>
+              </ul>
             </div>
-                </details>
-              </div>
-            </ul>
           </div>
         </div>
       </Card>
@@ -986,86 +530,26 @@ const ConstraintManager: React.FC = () => {
         <div className="flex flex-col lg:flex-row justify-between items-center mb-4 space-y-2 lg:space-y-0">
           <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center space-x-2">
-            <span className="text-gray-700 font-medium flex items-center">
-              <ArrowDownAZ className="w-5 h-5 mr-2" />
-              Sort by:
-            </span>
+              <span className="text-gray-700 font-medium flex items-center"><ArrowDownAZ className="w-5 h-5 mr-2" /> Sort by:</span>
             <div className="flex space-x-2">
-              <button
-                className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('as-entered')}
-              >
-                As Entered
-              </button>
-              <button
-                className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('first-name')}
-              >
-                First Name
-              </button>
-              <button
-                className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'}
-                onClick={() => setSortOption('last-name')}
-              >
-                Last Name
-              </button>
-              <button
-                  className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${
-                    state.seatingPlans.length === 0 ? 'opacity-50' : ''
-                  }`}
-                onClick={() => setSortOption('current-table')}
-                disabled={state.seatingPlans.length === 0}
-              >
-                Current Table
-              </button>
+                <button className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('as-entered')}>As Entered</button>
+                <button className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('first-name')}>First Name</button>
+                <button className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('last-name')}>Last Name</button>
+                <button className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${(state.seatingPlans?.length || 0) === 0 ? 'opacity-50' : ''}`} onClick={() => setSortOption('current-table')} disabled={(state.seatingPlans?.length || 0) === 0}>Current Table</button>
               </div>
             </div>
           </div>
           
-          {/* Export button moved to top-right */}
-          <div className="flex items-center">
-            <button onClick={exportJSON} className="danstyle1c-btn" title="Export constraints as JSON">
-                <Download className="w-4 h-4 mr-1" />
-                Export
-              </button>
-          </div>
-          
-          {/* Navigation buttons above the grid - only shown for 120+ guests (preserved) */}
-          {shouldShowPagination && state.guests.length > 0 && (
+          {shouldShowPagination && (state.guests as Guest[]).length > 0 && (
             <div className="flex space-x-2">
-              <button
-                className="danstyle1c-btn w-24 mx-1"
-                onClick={() => handleNavigatePlan(-1)}
-                disabled={currentPage === 0}
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Previous
-              </button>
-
-              <button
-                className="danstyle1c-btn w-24 mx-1"
-                onClick={() => handleNavigatePlan(1)}
-                disabled={currentPage >= totalPages - 1}
-              >
-                Next
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </button>
+              <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0}><ChevronLeft className="w-4 h-4 mr-1" /> Previous</button>
+              <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1}>Next <ChevronRight className="w-4 h-4 ml-1" /></button>
             </div>
           )}
         </div>
         
-        <div ref={gridRef}>
-          {state.guests.length === 0 ? (
-            <p className="text-gray-500 text-center py-4">
-              No guests added yet. Add guests to create constraints.
-            </p>
-          ) : (
-            constraintGrid
-          )}
-        </div>
+        <div ref={gridRef}>{(state.guests as Guest[]).length === 0 ? (<p className="text-gray-500 text-center py-4">No guests added yet. Add guests to create constraints.</p>) : (constraintGrid)}</div>
       </Card>
-      
-      <SavedSettingsAccordion isDefaultOpen={false} />
     </div>
   );
 };
