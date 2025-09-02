@@ -9,7 +9,7 @@ import { redirectToCheckout } from '../lib/stripe';
 import { isPremiumSubscription, getMaxGuestLimit, getGuestLimitMessage } from '../utils/premium';
 import { clearRecentSessionSettings } from '../lib/sessionSettings';
 import { getLastNameForSorting } from '../utils/formatters';
-import { getDisplayName } from '../utils/guestCount';
+import { getDisplayName, countHeads } from '../utils/guestCount';
 import FormatGuestName from '../components/FormatGuestName';
 
 import { useNavigate } from 'react-router-dom';
@@ -623,11 +623,20 @@ const GuestManager: React.FC = () => {
     }
     const newName = editingGuestName.trim();
     const currentGuest = state.guests[index];
+    const newCount = countHeads(newName);
     
     dispatch({
       type: 'RENAME_GUEST',
       payload: { oldName: currentGuest.name, newName: newName }
     });
+    
+    // Update count if it changed
+    if (newCount !== currentGuest.count) {
+      dispatch({
+        type: 'UPDATE_GUEST_COUNT',
+        payload: { index, count: newCount }
+      });
+    }
       
     purgeSeatingPlans();
     setLocalDuplicateGuests([]);

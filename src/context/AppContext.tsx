@@ -7,7 +7,6 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
-import { countHeads } from '../utils/guestCount';
 import {
   Guest,
   Table,
@@ -264,9 +263,9 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       const { oldName, newName } = action.payload;
       if (!oldName || !newName || oldName === newName) return state;
 
-      // 1) guests array - update name and recalculate count
+      // 1) guests array - update name only (count will be updated separately)
       const guests = (state.guests || []).map(g => 
-        g.name === oldName ? { ...g, name: newName, count: countHeads(newName) } : g
+        g.name === oldName ? { ...g, name: newName } : g
       );
 
       // 2) constraints: row rename and column rename
