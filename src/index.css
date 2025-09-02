@@ -217,58 +217,69 @@
   overflow: visible;  /* ensure halo isn't clipped */
 }
 
-/* Big soft halo that extends much further beyond the button bounds (esp. lower-left) */
+/* Big soft halo that radiates downward from beneath the button */
 #loadTestGuestListBtn::after {
   content: "";
   position: absolute;
-  left: -50%;
-  bottom: -60%;
-  width: 250%;
-  height: 300%;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  width: 300%;
+  height: 400%;
   border-radius: 50%;
   pointer-events: none;
-  filter: blur(35px);
-  opacity: 0.6;
-  background: radial-gradient(closest-side, rgba(255,0,0,0.4), rgba(0,255,0,0.3), rgba(0,0,255,0.2), transparent 80%);
-  animation: loadTestRainbowGlow 3s ease-in-out infinite;
+  filter: blur(40px);
+  opacity: 0.7;
+  background: radial-gradient(ellipse at top, rgba(255,0,0,0.5), rgba(0,255,0,0.3), rgba(0,0,255,0.2), transparent 70%);
+  animation: loadTestRainbowGlow 4s ease-in-out infinite;
   z-index: -1; /* Ensure glow stays behind button text */
 }
 
 @keyframes loadTestRainbowGlow {
   0% { 
-    transform: scale(0.9); 
-    opacity: 0.4;
-    background: radial-gradient(closest-side, rgba(255,0,0,0.4), rgba(0,255,0,0.3), rgba(0,0,255,0.2), transparent 80%);
+    transform: translateX(-50%) scale(0.8); 
+    opacity: 0.5;
+    background: radial-gradient(ellipse at top, rgba(255,0,0,0.5), rgba(255,100,0,0.3), rgba(255,200,0,0.2), transparent 70%);
   }
-  16.66% { 
-    transform: scale(1.1); 
+  12.5% { 
+    transform: translateX(-50%) scale(1.0); 
     opacity: 0.7;
-    background: radial-gradient(closest-side, rgba(255,165,0,0.4), rgba(255,0,0,0.3), rgba(0,255,0,0.2), transparent 80%);
+    background: radial-gradient(ellipse at top, rgba(255,100,0,0.5), rgba(255,200,0,0.3), rgba(255,255,0,0.2), transparent 70%);
   }
-  33.33% { 
-    transform: scale(1.2); 
+  25% { 
+    transform: translateX(-50%) scale(1.2); 
     opacity: 0.8;
-    background: radial-gradient(closest-side, rgba(255,255,0,0.4), rgba(255,165,0,0.3), rgba(255,0,0,0.2), transparent 80%);
+    background: radial-gradient(ellipse at top, rgba(255,200,0,0.5), rgba(255,255,0,0.3), rgba(200,255,0,0.2), transparent 70%);
+  }
+  37.5% { 
+    transform: translateX(-50%) scale(1.4); 
+    opacity: 0.9;
+    background: radial-gradient(ellipse at top, rgba(255,255,0,0.5), rgba(200,255,0,0.3), rgba(0,255,0,0.2), transparent 70%);
   }
   50% { 
-    transform: scale(1.3); 
+    transform: translateX(-50%) scale(1.6); 
+    opacity: 1.0;
+    background: radial-gradient(ellipse at top, rgba(200,255,0,0.5), rgba(0,255,0,0.3), rgba(0,255,100,0.2), transparent 70%);
+  }
+  62.5% { 
+    transform: translateX(-50%) scale(1.4); 
     opacity: 0.9;
-    background: radial-gradient(closest-side, rgba(0,255,0,0.4), rgba(255,255,0,0.3), rgba(255,165,0,0.2), transparent 80%);
+    background: radial-gradient(ellipse at top, rgba(0,255,0,0.5), rgba(0,255,100,0.3), rgba(0,255,200,0.2), transparent 70%);
   }
-  66.66% { 
-    transform: scale(1.2); 
+  75% { 
+    transform: translateX(-50%) scale(1.2); 
     opacity: 0.8;
-    background: radial-gradient(closest-side, rgba(0,255,255,0.4), rgba(0,255,0,0.3), rgba(255,255,0,0.2), transparent 80%);
+    background: radial-gradient(ellipse at top, rgba(0,255,100,0.5), rgba(0,255,200,0.3), rgba(0,200,255,0.2), transparent 70%);
   }
-  83.33% { 
-    transform: scale(1.1); 
+  87.5% { 
+    transform: translateX(-50%) scale(1.0); 
     opacity: 0.7;
-    background: radial-gradient(closest-side, rgba(0,0,255,0.4), rgba(0,255,255,0.3), rgba(0,255,0,0.2), transparent 80%);
+    background: radial-gradient(ellipse at top, rgba(0,255,200,0.5), rgba(0,200,255,0.3), rgba(0,100,255,0.2), transparent 70%);
   }
   100% { 
-    transform: scale(0.9); 
-    opacity: 0.4;
-    background: radial-gradient(closest-side, rgba(128,0,128,0.4), rgba(0,0,255,0.3), rgba(0,255,255,0.2), transparent 80%);
+    transform: translateX(-50%) scale(0.8); 
+    opacity: 0.5;
+    background: radial-gradient(ellipse at top, rgba(0,200,255,0.5), rgba(0,100,255,0.3), rgba(100,0,255,0.2), transparent 70%);
   }
 }
 
