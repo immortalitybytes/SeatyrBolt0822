@@ -301,6 +301,8 @@ const SavedSettings: React.FC = () => {
           throw new Error('You\'re duplicating too quickly. Please wait a moment and try again.');
         } else if (error.message.includes('check_settings_limit')) {
           throw new Error(`You've reached your limit of saved settings. Upgrade to Premium for more.`);
+        } else if (error.message.includes('duplicate key') || error.message.includes('unique constraint')) {
+          throw new Error('A setting with this name already exists. Please choose a different name.');
         } else {
           throw error;
         }

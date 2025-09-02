@@ -49,8 +49,8 @@ const GuestManager: React.FC = () => {
 
   // Check if we need to trim the guest list (non-premium users)
   useEffect(() => {
-    // Only run this check if we're not premium
-    if (!isPremiumSubscription(state.subscription)) {
+    // Only run this check if user is logged in and not premium
+    if (state.user && !isPremiumSubscription(state.subscription)) {
       const maxGuests = getMaxGuestLimit(state.subscription);
       
       // If current guest list exceeds the limit, trim it
@@ -65,7 +65,7 @@ const GuestManager: React.FC = () => {
         alert(`Your guest list has been trimmed to ${maxGuests} guests (free user limit). Upgrade to Premium for unlimited guests.`);
       }
     }
-  }, [state.subscription, state.guests.length, dispatch]);
+  }, [state.user, state.subscription, state.guests.length, dispatch]);
 
   // --- IMPROVED: Fetch saved settings immediately on login/user change ---
   useEffect(() => {

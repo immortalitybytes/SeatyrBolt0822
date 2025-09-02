@@ -6,7 +6,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 
 // Disable large guest list warnings site-wide
 const SHOW_LARGE_LIST_WARNING = false;
-import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, X, CheckCircle, AlertTriangle } from 'lucide-react';
+import { ClipboardList, Info, AlertCircle, ChevronLeft, ChevronRight, Crown, ArrowDownAZ, X, AlertTriangle } from 'lucide-react';
 import Card from '../components/Card';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
@@ -132,22 +132,7 @@ const ConstraintManager: React.FC = () => {
   );
 
   // ——————————————————————————————————————————————
-  // Suggestions (optional UX)
-  const smartSuggestions = useMemo((): string[] => {
-    const suggestions: string[] = [];
-    if (safeConflicts.length > 0) {
-      suggestions.push(`Resolve ${safeConflicts.length} constraint conflicts to improve seating generation.`);
-    }
-    const constraintCount = Object.keys(state.constraints || {}).reduce((count, key) =>
-      count + Object.keys((state.constraints as any)[key]).length, 0) / 2;
-    if (constraintCount === 0 && (state.guests as Guest[]).length > 10) {
-      suggestions.push('Consider adding "must sit together" constraints for families or friends.');
-    }
-    if (constraintCount > (state.guests as Guest[]).length * 2) {
-      suggestions.push('You have many constraints. Consider if all are necessary for flexibility.');
-    }
-    return suggestions;
-  }, [safeConflicts.length, state.constraints, state.guests]);
+  // Smart Suggestions removed - conflict detection preserved
 
   // ——————————————————————————————————————————————
   // Pagination UX
@@ -386,27 +371,58 @@ const ConstraintManager: React.FC = () => {
     });
 
     const renderPageNumbers = () => {
-      if (totalPages <= 9) {
+      if (totalPages <= 5) {
         return Array.from({ length: totalPages }, (_, i) => (
-          <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-2' : 'danstyle1c-btn mx-1 w-2'}>
+          <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-1 text-lg' : 'danstyle1c-btn mx-1 w-1 text-lg'}>
             {i + 1}
           </button>
         ));
       }
+      
       const buttons: JSX.Element[] = [];
-      for (let i = 0; i < 3; i++) if (i < totalPages) buttons.push(
-        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-2' : 'danstyle1c-btn mx-1 w-2'}>{i + 1}</button>
+      const current = currentPage;
+      const last = totalPages - 1;
+      
+      // Always show first page
+      buttons.push(
+        <button key={0} onClick={() => setCurrentPage(0)} className={current === 0 ? 'danstyle1c-btn selected mx-1 w-1 text-lg' : 'danstyle1c-btn mx-1 w-1 text-lg'}>
+          1
+        </button>
       );
-      if (currentPage > 2) {
+      
+      // Show ellipsis if needed
+      if (current > 2) {
         buttons.push(<span key="ellipsis1" className="mx-1">...</span>);
-        if (currentPage < totalPages - 3) buttons.push(
-          <button key={currentPage} onClick={() => setCurrentPage(currentPage)} className="danstyle1c-btn selected mx-1 w-2">{currentPage + 1}</button>
+      }
+      
+      // Show center bundle of up to 5 buttons: (X-2), (X-1), X, (X+1), (X+2)
+      const start = Math.max(1, current - 2);
+      const end = Math.min(last - 1, current + 2);
+      
+      for (let i = start; i <= end; i++) {
+        if (i !== 0 && i !== last) { // Don't duplicate first and last
+          buttons.push(
+            <button key={i} onClick={() => setCurrentPage(i)} className={current === i ? 'danstyle1c-btn selected mx-1 w-1 text-lg' : 'danstyle1c-btn mx-1 w-1 text-lg'}>
+              {i + 1}
+            </button>
+          );
+        }
+      }
+      
+      // Show ellipsis if needed
+      if (current < last - 2) {
+        buttons.push(<span key="ellipsis2" className="mx-1">...</span>);
+      }
+      
+      // Always show last page
+      if (last > 0) {
+        buttons.push(
+          <button key={last} onClick={() => setCurrentPage(last)} className={current === last ? 'danstyle1c-btn selected mx-1 w-1 text-lg' : 'danstyle1c-btn mx-1 w-1 text-lg'}>
+            {last + 1}
+          </button>
         );
       }
-      if (currentPage < totalPages - 3) buttons.push(<span key="ellipsis2" className="mx-1">...</span>);
-      for (let i = Math.max(3, totalPages - 3); i < totalPages; i++) buttons.push(
-        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-2' : 'danstyle1c-btn mx-1 w-2'}>{i + 1}</button>
-      );
+      
       return buttons;
     };
 
@@ -500,19 +516,7 @@ const ConstraintManager: React.FC = () => {
             </div>
           )}
 
-          {smartSuggestions.length > 0 && (
-            <div className="bg-blue-50 border rounded-lg p-4">
-              <h3 className="flex items-center text-blue-800 font-medium mb-2"><CheckCircle className="w-4 h-4 mr-1" /> Smart Suggestions</h3>
-              <div className="space-y-2">
-                {smartSuggestions.map((s, i) => (
-                  <div key={i} className="flex items-center space-x-2 text-blue-700 text-sm">
-                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                    <span>{s}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+
 
           <div className="flex items-start space-x-4">
             <Info className="text-gray-700 mt-1 flex-shrink-0" />
