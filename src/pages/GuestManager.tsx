@@ -163,7 +163,14 @@ const GuestManager: React.FC = () => {
     saveTablesForPremiumUsers();
   }, [state.tables, state.user, state.subscription, state.userSetTables]);
 
+  // Auto-hide arrows after 20 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      hideArrows();
+    }, 20000); // 20 seconds
 
+    return () => clearTimeout(timer);
+  }, []);
 
   // Function to toggle video visibility
   const toggleVideo = () => {
@@ -566,7 +573,17 @@ const GuestManager: React.FC = () => {
     setShowDuplicateWarning(false);
   };
 
+  const hideArrows = () => {
+    const leftArrow = document.getElementById('leftArrow');
+    const rightArrow = document.getElementById('rightArrow');
+    if (leftArrow) leftArrow.classList.add('hidden');
+    if (rightArrow) rightArrow.classList.add('hidden');
+  };
+
   const loadTestGuestList = () => {
+    // Hide arrows immediately when button is clicked
+    hideArrows();
+    
     const testGuests = [
       { name: 'Alice Smith', count: 1 },
       { name: 'Bob & Carol Johnson', count: 2 },
@@ -988,9 +1005,9 @@ const GuestManager: React.FC = () => {
                   style={{ height: '70.2px', width: '60%' }}
                   id="loadTestGuestListBtn"
                 >
-                  <span className="pulsing-arrow">➡️</span>
-                  <span className="mx-2">Load Test Guest List</span>
-                  <span className="pulsing-arrow">⬅️</span>
+                  <span className="pulsing-arrow" id="leftArrow">➡️</span>
+                  <span className="mx-8">Load Test Guest List</span>
+                  <span className="pulsing-arrow" id="rightArrow">⬅️</span>
                 </button>
                 
                 <button
