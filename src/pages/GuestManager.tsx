@@ -568,38 +568,16 @@ const GuestManager: React.FC = () => {
 
   const loadTestGuestList = () => {
     const testGuests = [
-      { name: 'Maria Garcia+1', count: 2 },
-      { name: 'James Johnson&1', count: 2 },
-      { name: 'Wei & Sara Chen', count: 2 },
-      { name: 'Sarah&Bobby Williams+1', count: 3 },
-      { name: 'Carlos Rodriguez+2', count: 3 },
-      { name: 'Emily Davis& 2', count: 3 },
-      { name: 'Raj Patel +1', count: 2 },
-      { name: 'Ashley Brown &1', count: 2 },
-      { name: 'Jose Martinez & Billy', count: 2 },
-      { name: 'Jessica Wilson', count: 1 },
-      { name: 'David Kim + 1', count: 2 },
-      { name: 'Michelle Jones+ 1', count: 2 },
-      { name: 'Luis Hernandez', count: 1 },
-      { name: 'Amanda Taylor+ 2', count: 3 },
-      { name: 'Priya Sharma plus 1', count: 2 },
-      { name: 'Michael Miller + 2', count: 3 },
-      { name: 'Ana Gonzalez plus 1', count: 2 },
-      { name: 'Christopher Anderson + 2', count: 3 },
-      { name: 'Fatima Al-Rashid and Dale', count: 2 },
-      { name: 'Tyler Goldberg+3', count: 4 },
-      { name: 'Stephanie Jackson', count: 1 },
-      { name: 'Arjun Gupta', count: 1 },
-      { name: 'Nicole White', count: 1 },
-      { name: 'Diego Ramirez', count: 1 },
-      { name: 'Samantha Harris', count: 1 },
-      { name: 'Jin Wang', count: 1 },
-      { name: 'Rachel Martin &2', count: 3 },
-      { name: 'Sergio Moreno', count: 1 },
-      { name: 'Kayla & Daveed Lopez', count: 2 },
-      { name: 'Ravi Berns-Krishnan+wife', count: 2 },
-      { name: 'Kenji Nakamura+2', count: 3 },
-      { name: 'Megan Clark', count: 1 }
+      { name: 'Alice Smith', count: 1 },
+      { name: 'Bob & Carol Johnson', count: 2 },
+      { name: 'David Chen & Jessica Brown', count: 2 },
+      { name: 'Emma Wilson', count: 1 },
+      { name: 'Frank & Grace & Henry Davis', count: 3 },
+      { name: 'Isabella Martinez', count: 1 },
+      { name: 'Jack & Kate & Liam & Mia Thompson', count: 4 },
+      { name: 'Noah & Olivia Parker', count: 2 },
+      { name: 'Paul & Quinn & Rachel & Sam & Tina Underwood', count: 5 },
+      { name: 'Victor & Wendy Young', count: 2 }
     ];
     
     // Clear existing guests and add test list
@@ -612,12 +590,6 @@ const GuestManager: React.FC = () => {
     
     // Purge seating plans since guests changed
     purgeSeatingPlans();
-    
-    // Stop the glow effect after button is clicked
-    const button = document.getElementById('loadTestGuestListBtn');
-    if (button) {
-      button.classList.add('clicked');
-    }
   };
   
   const handleRenameGuest = (index: number, guestName?: string) => {
@@ -1016,7 +988,9 @@ const GuestManager: React.FC = () => {
                   style={{ height: '70.2px', width: '60%' }}
                   id="loadTestGuestListBtn"
                 >
-                  Load Test Guest List
+                  <span className="pulsing-arrow">➡️</span>
+                  <span className="mx-2">Load Test Guest List</span>
+                  <span className="pulsing-arrow">⬅️</span>
                 </button>
                 
                 <button

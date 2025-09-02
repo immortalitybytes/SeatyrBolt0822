@@ -65,27 +65,7 @@
   }
 }
 
-/* Glow effect for Load Test Guest List button */
-#loadTestGuestListBtn {
-  animation: buttonGlow 2s ease-in-out infinite;
-  animation-iteration-count: 5;
-}
-
-@keyframes buttonGlow {
-  0%, 100% {
-    box-shadow: 0 5px 5px 0 #323F4F, 0 0 20px rgba(0, 255, 255, 0.3);
-  }
-  50% {
-    box-shadow: 0 5px 5px 0 #323F4F, 0 0 40px rgba(0, 255, 255, 0.6), 0 0 60px rgba(0, 255, 255, 0.3);
-    transform: scale(1.05);
-  }
-}
-
-/* Stop glow after button is clicked */
-#loadTestGuestListBtn.clicked {
-  animation: none;
-  box-shadow: 0 5px 5px 0 #323F4F;
-}
+/* Remove glow effect - no longer needed */
 
 .danstyle1c-btn.selected, .danstyle1c-btn[aria-current="page"] {
   background: #586D78; /* Marble Blue background when selected */
@@ -211,80 +191,36 @@
   animation: highlight-password-section 5s ease-in-out;
 }
 
-/* Larger, radiating glow halo under the "Load Test Guest List" button */
-#loadTestGuestListBtn {
-  position: relative; /* anchor pseudo-element */
-  overflow: visible;  /* ensure halo isn't clipped */
-}
-
-/* Big soft halo that radiates downward from beneath the button */
-#loadTestGuestListBtn::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  transform: translateX(-50%);
-  width: 300%;
-  height: 400%;
-  border-radius: 50%;
-  pointer-events: none;
-  filter: blur(40px);
-  opacity: 0.7;
-  background: radial-gradient(ellipse at top, rgba(255,0,0,0.5), rgba(0,255,0,0.3), rgba(0,0,255,0.2), transparent 70%);
-  animation: loadTestRainbowGlow 4s ease-in-out infinite;
-  z-index: -1; /* Ensure glow stays behind button text */
-}
-
-@keyframes loadTestRainbowGlow {
+/* Pulsing arrows for Load Test Guest List button */
+@keyframes pulseArrows {
   0% { 
-    transform: translateX(-50%) scale(0.8); 
-    opacity: 0.5;
-    background: radial-gradient(ellipse at top, rgba(255,0,0,0.5), rgba(255,100,0,0.3), rgba(255,200,0,0.2), transparent 70%);
-  }
-  12.5% { 
-    transform: translateX(-50%) scale(1.0); 
-    opacity: 0.7;
-    background: radial-gradient(ellipse at top, rgba(255,100,0,0.5), rgba(255,200,0,0.3), rgba(255,255,0,0.2), transparent 70%);
-  }
-  25% { 
-    transform: translateX(-50%) scale(1.2); 
-    opacity: 0.8;
-    background: radial-gradient(ellipse at top, rgba(255,200,0,0.5), rgba(255,255,0,0.3), rgba(200,255,0,0.2), transparent 70%);
-  }
-  37.5% { 
-    transform: translateX(-50%) scale(1.4); 
-    opacity: 0.9;
-    background: radial-gradient(ellipse at top, rgba(255,255,0,0.5), rgba(200,255,0,0.3), rgba(0,255,0,0.2), transparent 70%);
+    transform: scale(1.0);
+    opacity: 0.6;
   }
   50% { 
-    transform: translateX(-50%) scale(1.6); 
+    transform: scale(1.3);
     opacity: 1.0;
-    background: radial-gradient(ellipse at top, rgba(200,255,0,0.5), rgba(0,255,0,0.3), rgba(0,255,100,0.2), transparent 70%);
-  }
-  62.5% { 
-    transform: translateX(-50%) scale(1.4); 
-    opacity: 0.9;
-    background: radial-gradient(ellipse at top, rgba(0,255,0,0.5), rgba(0,255,100,0.3), rgba(0,255,200,0.2), transparent 70%);
-  }
-  75% { 
-    transform: translateX(-50%) scale(1.2); 
-    opacity: 0.8;
-    background: radial-gradient(ellipse at top, rgba(0,255,100,0.5), rgba(0,255,200,0.3), rgba(0,200,255,0.2), transparent 70%);
-  }
-  87.5% { 
-    transform: translateX(-50%) scale(1.0); 
-    opacity: 0.7;
-    background: radial-gradient(ellipse at top, rgba(0,255,200,0.5), rgba(0,200,255,0.3), rgba(0,100,255,0.2), transparent 70%);
   }
   100% { 
-    transform: translateX(-50%) scale(0.8); 
-    opacity: 0.5;
-    background: radial-gradient(ellipse at top, rgba(0,200,255,0.5), rgba(0,100,255,0.3), rgba(100,0,255,0.2), transparent 70%);
+    transform: scale(1.0);
+    opacity: 0.6;
   }
 }
 
-/* When the button is "clicked", stop the halo (class already added in code) */
-#loadTestGuestListBtn.clicked::after {
-  animation: none;
-  opacity: 0;
+@keyframes colorCycle {
+  0% { color: #ff0000; } /* Red */
+  14.28% { color: #ff8000; } /* Orange */
+  28.57% { color: #ffff00; } /* Yellow */
+  42.85% { color: #80ff00; } /* Lime */
+  57.14% { color: #00ff00; } /* Green */
+  71.42% { color: #00ff80; } /* Cyan */
+  85.71% { color: #0080ff; } /* Blue */
+  100% { color: #8000ff; } /* Purple */
+}
+
+.pulsing-arrow {
+  animation: pulseArrows 2s ease-in-out, colorCycle 2s ease-in-out;
+  animation-iteration-count: 10;
+  font-size: 24px;
+  display: inline-block;
 }
