@@ -19,7 +19,7 @@ export function extractPartySuffix(raw: string): string | null {
   const paren = s.match(/\((\d+)\)\s*$/);
 
   // verbal forms: "+guest", "+ guest", "plus one", "and two"
-  const plusGuestDirect = /[&+](?:guest|guests?)\s*$/i.test(s);
+  const plusGuestDirect = /[&+]\s*(?:guest|guests?)\s*$/i.test(s);
   const plusGuest = /\b(?:\+|plus|and)\s+(?:guest|guests?)\s*$/i.test(s);
   const plusWord = s.match(/\b(?:\+|plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\s*$/i);
 
@@ -66,10 +66,10 @@ export function countHeads(raw: string): number {
     return Math.max(1, baseCount + spelledCount);
   }
   
-  // Check for "+guest" patterns (like "John +guest")
-  const plusGuestDirect = /[&+](?:guest|guests?)\s*$/i.test(s);
+  // Check for "+guest" patterns (like "John +guest", "John + guest")
+  const plusGuestDirect = /[&+]\s*(?:guest|guests?)\s*$/i.test(s);
   if (plusGuestDirect) {
-    const baseName = s.replace(/[&+](?:guest|guests?)\s*$/i, '').trim();
+    const baseName = s.replace(/[&+]\s*(?:guest|guests?)\s*$/i, '').trim();
     const baseCount = baseName ? 1 : 0; // Base person if there's a name
     return Math.max(1, baseCount + 1);
   }
