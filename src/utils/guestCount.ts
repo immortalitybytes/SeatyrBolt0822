@@ -34,15 +34,53 @@ export function extractPartySuffix(raw: string): string | null {
 
 export function countHeads(raw: string): number {
   let s = raw.trim(); if (!s) return 0;
-  const baseTokens = s.split(/\s*(?:&|\+|and|plus)\s*/i).filter(Boolean);
-  let count = Math.max(1, baseTokens.length);
-  const paren = s.match(/\((\d+)\)\s*$/); if (paren) count = Math.max(count, parseInt(paren[1], 10));
-  for (const m of s.matchAll(/[&+]\s*(\d+)\b/g)) count += parseInt(m[1], 10);
-  for (const m of s.matchAll(/\b(?:plus|and)\s+(\d+)\b/gi)) count += parseInt(m[1], 10);
+  
+  // Check for explicit numeric suffixes first (highest priority)
+  const paren = s.match(/\((\d+)\)\s*$/);
+  if (paren) return Math.max(1, parseInt(paren[1], 10));
+  
+  // Check for +N patterns (like "John +2")
+  const plusNum = s.match(/[&+]\s*(\d+)\s*$/);
+  if (plusNum) {
+    const baseName = s.replace(/[&+]\s*\d+\s*$/, '').trim();
+    const baseCount = baseName ? 1 : 0; // Base person if there's a name
+    return Math.max(1, baseCount + parseInt(plusNum[1], 10));
+  }
+  
+  // Check for "plus N" patterns (like "John plus 2")
+  const plusWord = s.match(/\b(?:plus|and)\s+(\d+)\b/gi);
+  if (plusWord) {
+    const baseName = s.replace(/\b(?:plus|and)\s+\d+\b/gi, '').trim();
+    const baseCount = baseName ? 1 : 0; // Base person if there's a name
+    return Math.max(1, baseCount + parseInt(plusWord[0].match(/\d+/)[0], 10));
+  }
+  
+  // Check for spelled numbers (like "John plus one")
   const spelled = [...s.matchAll(/\b(?:plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\b/gi)];
-  for (const m of spelled) count += NUMBER_WORDS[m[1].toLowerCase()];
+  if (spelled.length > 0) {
+    const baseName = s.replace(/\b(?:plus|and)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\b/gi, '').trim();
+    const baseCount = baseName ? 1 : 0; // Base person if there's a name
+    const spelledCount = NUMBER_WORDS[spelled[0][1].toLowerCase()];
+    return Math.max(1, baseCount + spelledCount);
+  }
+  
+  // Check for "plus guest" patterns
+  const plusGuest = /\b(?:plus|and)\s+(?:guest|guests?)\s*$/i.test(s);
+  if (plusGuest) {
+    const baseName = s.replace(/\b(?:plus|and)\s+(?:guest|guests?)\s*$/i, '').trim();
+    const baseCount = baseName ? 1 : 0; // Base person if there's a name
+    return Math.max(1, baseCount + 1);
+  }
+  
+  // Check for family/household patterns
   const familyOf = s.match(/\b(?:family|household)\s+of\s+(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b/i);
-  if (familyOf) { const v = familyOf[1].toLowerCase(); count = Math.max(count, NUMBER_WORDS[v] ?? parseInt(v,10)); }
-  return Math.max(1, count);
+  if (familyOf) { 
+    const v = familyOf[1].toLowerCase(); 
+    return Math.max(1, NUMBER_WORDS[v] ?? parseInt(v,10)); 
+  }
+  
+  // Default: count base tokens (for names like "John & Jane")
+  const baseTokens = s.split(/\s*(?:&|\+|and|plus)\s*/i).filter(Boolean);
+  return Math.max(1, baseTokens.length);
 }
 
