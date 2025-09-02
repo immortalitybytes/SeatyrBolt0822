@@ -698,23 +698,34 @@ const ConstraintManager: React.FC = () => {
             <Info className="text-[#586D78] mt-1 flex-shrink-0" />
             <div>
               <h3 className="font-medium text-[#586D78]">How to use constraints:</h3>
-              <ul className="list-disc pl-5 space-y-3 text-gray-600 text-[17px] mt-2">
-                <li>Click a cell to cycle between constraints:
-                  <div className="mt-1 flex space-x-4">
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-[#22cf04] border border-[#586D78] mr-1"></span> 
-                      Must sit at the same table
+              <div className="text-gray-600 text-[17px] mt-2">
+                <div>Click a cell to cycle between constraints:</div>
+                <div className="mt-1 flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="inline-flex items-center justify-center"
+                          style={{ width: '1.5em', height: '1.5em', background: '#34d399', border: '2px solid #000', lineHeight: '1.5em' }}
+                          aria-label="Must">
+                      &
                     </span>
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-[#e6130b] border border-[#586D78] mr-1"></span> 
-                      Cannot sit at the same table
-                    </span>
-                    <span className="flex items-center">
-                      <span className="inline-block w-3 h-3 bg-white border border-[#586D78] mr-1"></span> 
-                      No constraint
-                    </span>
+                    <span>Must sit at the same table</span>
                   </div>
-                </li>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="inline-flex items-center justify-center"
+                          style={{ width: '1.5em', height: '1.5em', background: '#ef4444', border: '2px solid #000', lineHeight: '1.5em' }}
+                          aria-label="Cannot">
+                      X
+                    </span>
+                    <span>Cannot sit at the same table</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="inline-flex items-center justify-center"
+                          style={{ width: '1.5em', height: '1.5em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.5em' }}
+                          aria-label="No constraint">
+                    </span>
+                    <span>No constraint</span>
+                  </div>
+                </div>
+              </div>
                 <li>To set "Adjacent Seating" (guests sit right next to each other):
                   <ol className="list-decimal pl-5 mt-1">
                     <li>Long-press (mobile) or double-click (desktop) a guest name to select it</li>

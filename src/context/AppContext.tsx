@@ -7,6 +7,7 @@ import React, {
   useMemo,
   ReactNode,
 } from 'react';
+import { countHeads } from '../utils/guestCount';
 import {
   Guest,
   Table,
@@ -262,9 +263,6 @@ const reducer = (state: AppState, action: AppAction): AppState => {
     case 'RENAME_GUEST': {
       const { oldName, newName } = action.payload;
       if (!oldName || !newName || oldName === newName) return state;
-
-      // Import countHeads function to recalculate count
-      const { countHeads } = require('../utils/guestCount');
 
       // 1) guests array - update name and recalculate count
       const guests = (state.guests || []).map(g => 

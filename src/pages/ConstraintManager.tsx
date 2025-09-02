@@ -55,6 +55,7 @@ const ConstraintManager: React.FC = () => {
   const [isWarningExpanded, setIsWarningExpanded] = useState(false);
   const [initialWarningShown, setInitialWarningShown] = useState(false);
   const [userHasInteractedWithWarning, setUserHasInteractedWithWarning] = useState(false);
+  const [adjacentAccordionOpen, setAdjacentAccordionOpen] = useState(false);
   const gridRef = useRef<HTMLDivElement>(null);
   
   const isPremium = isPremiumSubscription?.(state.subscription);
@@ -516,47 +517,56 @@ const ConstraintManager: React.FC = () => {
             <Info className="text-gray-700 mt-1 flex-shrink-0" />
             <div>
               <h3 className="font-medium text-gray-800">How to use constraints:</h3>
-              <ul className="list-disc pl-5 space-y-1 text-gray-600 text-[15px] mt-2">
-                <li>Click a cell to cycle between constraints:
-                  <div className="mt-1 flex flex-wrap gap-4">
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="inline-flex items-center justify-center"
-                            style={{ width: '1.2em', height: '1.2em', background: '#34d399', border: '2px solid #000', lineHeight: '1.2em' }}
-                            aria-label="Must">
-                        &
-                      </span>
-                      <span>Must sit at the same table</span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="inline-flex items-center justify-center"
-                            style={{ width: '1.2em', height: '1.2em', background: '#ef4444', border: '2px solid #000', lineHeight: '1.2em' }}
-                            aria-label="Cannot">
-                        X
-                      </span>
-                      <span>Cannot sit at the same table</span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="inline-flex items-center justify-center"
-                            style={{ width: '1.2em', height: '1.2em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.2em' }}
-                            aria-label="No constraint">
-                        ⭐
-                      </span>
-                      <span>No constraint</span>
+              <div className="text-gray-600 text-[15px] mt-2">
+                <div>Click a cell to cycle between constraints:</div>
+                <div className="mt-1 flex flex-wrap gap-4">
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="inline-flex items-center justify-center"
+                          style={{ width: '1.5em', height: '1.5em', background: '#34d399', border: '2px solid #000', lineHeight: '1.5em' }}
+                          aria-label="Must">
+                      &
+                    </span>
+                    <span>Must sit at the same table</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="inline-flex items-center justify-center"
+                          style={{ width: '1.5em', height: '1.5em', background: '#ef4444', border: '2px solid #000', lineHeight: '1.5em' }}
+                          aria-label="Cannot">
+                      X
+                    </span>
+                    <span>Cannot sit at the same table</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="inline-flex items-center justify-center"
+                          style={{ width: '1.5em', height: '1.5em', background: '#ffffff', border: '2px solid #000', lineHeight: '1.5em' }}
+                          aria-label="No constraint">
+                    </span>
+                    <span>No constraint</span>
+                  </div>
+                </div>
+              </div>
+                {state.user && (
+                  <div className="mt-4">
+                    <div className="bg-blue-50 border border-blue-200 rounded-md">
+                      <button
+                        className="w-full px-4 py-2 text-left text-blue-800 font-medium hover:bg-blue-100 transition-colors"
+                        onClick={() => setAdjacentAccordionOpen(!adjacentAccordionOpen)}
+                      >
+                        <span className="mr-2">{adjacentAccordionOpen ? '▼' : '▶'}</span>
+                        To Set Adjacent-Seating:
+                      </button>
+                      {adjacentAccordionOpen && (
+                        <div className="px-4 pb-4 text-blue-700">
+                          <div className="mt-2">
+                            <div>1) Double-click a guest name to select it.</div>
+                            <div>2) Double-click another guest and the adjacency will be set automatically.</div>
+                            <div className="mt-2">Guests with adjacent constraints are marked with ⭐</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </li>
-                {state.user && (
-                  <li>To set "Adjacent Seating" (sit right next to each other):
-                    <ol className="list-decimal pl-5 mt-1">
-                      <li>{isTouchDevice ? 'Long-press' : 'Double-click'} a guest name to select it</li>
-                      <li>Click another guest and the adjacency will be set automatically</li>
-                    </ol>
-                  </li>
                 )}
-                {state.user && (
-                  <li>Guests with adjacent constraints are marked with <span className="text-yellow-600 font-bold">*</span></li>
-                )}
-              </ul>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import Card from '../components/Card';
 import Button from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { isPremiumSubscription } from '../utils/premium';
+import FormatGuestName from '../components/FormatGuestName';
 import { getLastNameForSorting } from '../utils/formatters';
 
 // Sort options
@@ -359,13 +360,7 @@ const AssignmentManager: React.FC = () => {
                   <div className="flex flex-col gap-4">
                     <div className="min-w-[150px] font-medium text-[#586D78]">
                       <div>
-                        {guest.name.includes('%') ? (
-                          <>
-                            {guest.name.split('%')[0]}
-                            <span style={{ color: '#959595' }}>%</span>
-                            {guest.name.split('%')[1]}
-                          </>
-                        ) : guest.name}
+                        <FormatGuestName name={guest.name} />
                         {guest.count > 1 && (
                           <span className="ml-2 text-sm text-gray-700 font-medium block mt-1">
                             Party size: {guest.count} {guest.count === 2 ? 'people' : 'people'}

@@ -322,7 +322,7 @@ const GuestManager: React.FC = () => {
           // Check guest limit before importing
           const totalGuests = configData.guests.length;
           const isPremium = isPremiumSubscription(state.subscription);
-          const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
+          const maxGuestLimit = getMaxGuestLimit(state.subscription);
           
           if (totalGuests > maxGuestLimit && !isPremium) {
             setShowLimitWarning(true);
@@ -364,7 +364,7 @@ const GuestManager: React.FC = () => {
 
           if (guests.length > 0) {
             const isPremium = isPremiumSubscription(state.subscription);
-            const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
+            const maxGuestLimit = getMaxGuestLimit(state.subscription);
             
             // Calculate total guests (current + new)
             const totalGuestCount = guests.reduce((sum, g) => sum + g.count, 0);
@@ -497,7 +497,7 @@ const GuestManager: React.FC = () => {
     const newGuests = parseGuestInput(guestInput);
     if (newGuests.length > 0) {
       const isPremium = isPremiumSubscription(state.subscription);
-      const maxGuestLimit = getMaxGuestLimit(isPremium ? { status: 'active' } : null);
+      const maxGuestLimit = getMaxGuestLimit(state.subscription);
       
       // Calculate total guests (current + new)
       const totalGuestCount = newGuests.reduce((sum, g) => sum + g.count, 0);
