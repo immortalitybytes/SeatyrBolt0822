@@ -351,8 +351,8 @@ const ConstraintManager: React.FC = () => {
             {guest1.count && guest1.count > 1 && (<div className="text-xs text-gray-700 font-medium">Party size: {guest1.count} {guest1.count === 1 ? 'person' : 'people'}</div>)}
             {(() => { 
               const a = getGuestTableAssignment(guest1.name); 
-              if (!a) return <div className="text-xs text-gray-300">Table: unassigned</div>; 
-              const color = a.type === 'assigned' ? 'text-gray-800' : a.type === 'plan' ? 'text-gray-800' : 'text-gray-300'; 
+              if (!a) return <div className="text-xs text-gray-200">Table: unassigned</div>; 
+              const color = a.type === 'assigned' ? 'text-gray-800' : a.type === 'plan' ? 'text-gray-800' : 'text-gray-200'; 
               const tableText = a.type === 'none' ? 'unassigned' : a.text;
               return <div className={`text-xs ${color} whitespace-normal break-words`} title={tableText}>Table: {tableText}</div>; 
             })()}
@@ -388,24 +388,24 @@ const ConstraintManager: React.FC = () => {
     const renderPageNumbers = () => {
       if (totalPages <= 9) {
         return Array.from({ length: totalPages }, (_, i) => (
-          <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>
+          <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-2' : 'danstyle1c-btn mx-1 w-2'}>
             {i + 1}
           </button>
         ));
       }
       const buttons: JSX.Element[] = [];
       for (let i = 0; i < 3; i++) if (i < totalPages) buttons.push(
-        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>{i + 1}</button>
+        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-2' : 'danstyle1c-btn mx-1 w-2'}>{i + 1}</button>
       );
       if (currentPage > 2) {
         buttons.push(<span key="ellipsis1" className="mx-1">...</span>);
         if (currentPage < totalPages - 3) buttons.push(
-          <button key={currentPage} onClick={() => setCurrentPage(currentPage)} className="danstyle1c-btn selected mx-1 w-4">{currentPage + 1}</button>
+          <button key={currentPage} onClick={() => setCurrentPage(currentPage)} className="danstyle1c-btn selected mx-1 w-2">{currentPage + 1}</button>
         );
       }
       if (currentPage < totalPages - 3) buttons.push(<span key="ellipsis2" className="mx-1">...</span>);
       for (let i = Math.max(3, totalPages - 3); i < totalPages; i++) buttons.push(
-        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-4' : 'danstyle1c-btn mx-1 w-4'}>{i + 1}</button>
+        <button key={i} onClick={() => setCurrentPage(i)} className={currentPage === i ? 'danstyle1c-btn selected mx-1 w-2' : 'danstyle1c-btn mx-1 w-2'}>{i + 1}</button>
       );
       return buttons;
     };

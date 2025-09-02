@@ -369,7 +369,7 @@ const SeatingPlanViewer: React.FC = () => {
 
         {/* Guest pagination controls - top (matching Constraints page) */}
         {shouldShowPagination && state.user && state.guests.length > 0 && (
-          <div className="flex space-x-2 mb-4">
+          <div className="flex justify-end space-x-2 mb-4">
             <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0}><ChevronLeft className="w-4 h-4 mr-1" /> Previous</button>
             <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1}>Next <ChevronRight className="w-4 h-4 ml-1" /></button>
           </div>

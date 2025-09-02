@@ -59,7 +59,7 @@ export const FormatGuestName: React.FC<FormatGuestNameProps> = ({ name, classNam
 
   return (
     <span className={className}>
-      {prefix.trim()}
+      {prefix}
       {leadingSpace}
       <span style={{ color: '#959595', fontStyle: 'italic' }}>
         {styledWord}
