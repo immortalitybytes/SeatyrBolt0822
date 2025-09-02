@@ -14,6 +14,7 @@ import { getLastNameForSorting } from '../utils/formatters';
 import { squash } from '../utils/stateSanitizer';
 import { detectConstraintConflictsSafe } from '../utils/conflictsSafe';
 import FormatGuestName from '../components/FormatGuestName';
+import SavedSettingsAccordion from '../components/SavedSettingsAccordion';
 
 // ——————————————————————————————————————————————
 // Normalization helpers moved to shared util (squash)
@@ -350,8 +351,8 @@ const ConstraintManager: React.FC = () => {
             {guest1.count && guest1.count > 1 && (<div className="text-xs text-gray-700 font-medium">Party size: {guest1.count} {guest1.count === 1 ? 'person' : 'people'}</div>)}
             {(() => { 
               const a = getGuestTableAssignment(guest1.name); 
-              if (!a) return <div className="text-xs text-gray-400">Table: unassigned</div>; 
-              const color = a.type === 'assigned' ? 'text-gray-800' : a.type === 'plan' ? 'text-gray-800' : 'text-gray-400'; 
+              if (!a) return <div className="text-xs text-gray-300">Table: unassigned</div>; 
+              const color = a.type === 'assigned' ? 'text-gray-800' : a.type === 'plan' ? 'text-gray-800' : 'text-gray-300'; 
               const tableText = a.type === 'none' ? 'unassigned' : a.text;
               return <div className={`text-xs ${color} whitespace-normal break-words`} title={tableText}>Table: {tableText}</div>; 
             })()}
@@ -516,7 +517,7 @@ const ConstraintManager: React.FC = () => {
           <div className="flex items-start space-x-4">
             <Info className="text-gray-700 mt-1 flex-shrink-0" />
             <div>
-              <h3 className="font-medium text-gray-800">How to use constraints</h3>
+              <h3 className="font-medium text-gray-800 text-[18.75px]">How to use constraints</h3>
               <div className="text-gray-600 text-[18.75px] mt-2 leading-relaxed">
                 <div>Click a cell to cycle between constraints:</div>
                 <div className="mt-1 flex flex-wrap gap-12">
@@ -596,6 +597,8 @@ const ConstraintManager: React.FC = () => {
         
         <div ref={gridRef}>{(state.guests as Guest[]).length === 0 ? (<p className="text-gray-500 text-center py-4">No guests added yet. Add guests to create constraints.</p>) : (constraintGrid)}</div>
       </Card>
+      
+      <SavedSettingsAccordion isDefaultOpen={false} />
     </div>
   );
 };
