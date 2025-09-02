@@ -516,10 +516,10 @@ const ConstraintManager: React.FC = () => {
           <div className="flex items-start space-x-4">
             <Info className="text-gray-700 mt-1 flex-shrink-0" />
             <div>
-              <h3 className="font-medium text-gray-800">How to use constraints:</h3>
-              <div className="text-gray-600 text-[15px] mt-2">
+              <h3 className="font-medium text-gray-800">How to use constraints</h3>
+              <div className="text-gray-600 text-[18.75px] mt-2 leading-relaxed">
                 <div>Click a cell to cycle between constraints:</div>
-                <div className="mt-1 flex flex-wrap gap-4">
+                <div className="mt-1 flex flex-wrap gap-12">
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="inline-flex items-center justify-center"
                           style={{ width: '1.5em', height: '1.5em', background: '#34d399', border: '2px solid #000', lineHeight: '1.5em' }}
