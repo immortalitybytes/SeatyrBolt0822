@@ -11,56 +11,56 @@ import { seatingTokensFromGuestUnit, nOfNTokensFromSuffix } from '../utils/forma
 const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.ReactNode => {
     if (!rawName) return '';
     
-    // Compute base tokens and extra tokens using helper functions
-    const baseTokens = seatingTokensFromGuestUnit(rawName);
-    const extraTokens = nOfNTokensFromSuffix(rawName);
-    const finalTokens = baseTokens.concat(extraTokens);
-    
-    // Reconstruct the original name with connectors preserved
     const originalName = rawName.trim();
     
-    // Find which token to bold based on seat index
-    const tokenToBold = finalTokens[seatIndex % finalTokens.length];
+    // Get base tokens (names) and extra tokens (ordinals)
+    const baseTokens = seatingTokensFromGuestUnit(rawName);
+    const extraTokens = nOfNTokensFromSuffix(rawName);
     
-    // Split the original name to preserve connectors
-    const parts = originalName.split(/(\s*(?:and|&|\+|plus|also)\s*)/i);
-    const result: React.ReactNode[] = [];
+    // Calculate total seats needed
+    const totalSeats = baseTokens.length + extraTokens.length;
     
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      
-      if (/\s*(?:and|&|\+|plus|also)\s*/i.test(part)) {
-        // This is a connector - render as-is
-        result.push(<span key={`conn-${i}`}>{part}</span>);
-      } else {
-        // This is a name part
-        const trimmedPart = part.trim();
-        if (!trimmedPart) continue;
-        
-        // Check if this part should be bolded
-        if (trimmedPart === tokenToBold) {
-          result.push(<strong key={`bold-${i}`}>{trimmedPart}</strong>);
-        } else {
-          result.push(<span key={`norm-${i}`}>{trimmedPart}</span>);
-        }
-      }
+    // Determine which token to bold based on seat index
+    let tokenToBold = '';
+    let showOrdinal = false;
+    let ordinalToShow = '';
+    
+    if (seatIndex < baseTokens.length) {
+      // Bold one of the base name tokens
+      tokenToBold = baseTokens[seatIndex];
+    } else {
+      // Show ordinal for additional seats
+      showOrdinal = true;
+      const ordinalIndex = seatIndex - baseTokens.length;
+      ordinalToShow = extraTokens[ordinalIndex] || '';
+      tokenToBold = ordinalToShow;
     }
     
-    // Add extra tokens (Nth of N) at the end if they exist
-    if (extraTokens.length > 0) {
-      const extraTokenToBold = extraTokens[seatIndex % extraTokens.length];
-      result.push(<span key="extra-sep"> + </span>);
+    // Build the display
+    const result: React.ReactNode[] = [];
+    
+    // Add base name tokens
+    baseTokens.forEach((token, index) => {
+      if (index > 0) {
+        // Add connector before each token (except first)
+        result.push(<span key={`conn-${index}`}> & </span>);
+      }
       
-      extraTokens.forEach((token, index) => {
-        if (token === extraTokenToBold) {
-          result.push(<strong key={`extra-bold-${index}`}>{token}</strong>);
-        } else {
-          result.push(<span key={`extra-norm-${index}`}>{token}</span>);
-        }
-        if (index < extraTokens.length - 1) {
-          result.push(<span key={`extra-conn-${index}`}> + </span>);
-        }
-      });
+      if (token === tokenToBold) {
+        result.push(<strong key={`bold-${index}`}>{token}</strong>);
+      } else {
+        result.push(<span key={`norm-${index}`}>{token}</span>);
+      }
+    });
+    
+    // Add ordinal if needed
+    if (showOrdinal && ordinalToShow) {
+      result.push(<span key="ordinal-sep">+</span>);
+      if (ordinalToShow === tokenToBold) {
+        result.push(<strong key="ordinal-bold">{ordinalToShow}</strong>);
+      } else {
+        result.push(<span key="ordinal-norm">{ordinalToShow}</span>);
+      }
     }
     
     return <>{result}</>;
@@ -254,11 +254,8 @@ const SeatingPlanViewer: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
-        <MapPin className="mr-2" />
-        Seating Plan
-      </h1>
       <Card>
+          <h2 className="text-lg font-bold text-[#586D78] mb-4">Seating Plan</h2>
           <p className="text-gray-700">Generate and review seating plans based on your guests, tables, and constraints.</p>
           <div className="flex flex-wrap gap-2 mt-4">
             <button className="danstyle1c-btn" onClick={handleGenerateSeatingPlan} disabled={isGenerating}>
@@ -280,12 +277,11 @@ const SeatingPlanViewer: React.FC = () => {
         {state.seatingPlans.length > 1 && (
           <div className="flex justify-end space-x-2 mb-4">
             <button
-              className="danstyle1c-btn w-24 mx-1"
+              className="danstyle1c-btn w-32 mx-1"
               onClick={() => handleNavigatePlan(-1)}
               disabled={state.currentPlanIndex <= 0}
             >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Previous
+              ← Previous
             </button>
             <button
               className="danstyle1c-btn w-24 mx-1"

@@ -16,7 +16,7 @@ const Card: React.FC<CardProps> = ({ title, children, className = '', actions })
           {actions && <div className="flex space-x-2">{actions}</div>}
         </div>
       )}
-      <div className="p-4">{children}</div>
+      <div className={title ? "p-2" : "p-4"}>{children}</div>
     </div>
   );
 };
