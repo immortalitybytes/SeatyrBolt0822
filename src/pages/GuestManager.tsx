@@ -1323,7 +1323,7 @@ const GuestManager: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {sortedGuests.map((guest, index) => {
                 const originalIndex = state.guests.findIndex(g => g.name === guest.name);
                 return (
@@ -1348,7 +1348,7 @@ const GuestManager: React.FC = () => {
                       />
                     ) : (
                       <span
-                        className="font-medium text-[#586D78] text-xl flex items-center"
+                        className="font-medium text-[#586D78] text-xl flex items-center break-words"
                         onDoubleClick={() => handleRenameGuest(originalIndex, guest.name)}
                         style={{ cursor: "pointer" }}
                       >
