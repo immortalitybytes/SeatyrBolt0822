@@ -276,9 +276,9 @@ const SeatingPlanViewer: React.FC = () => {
           )}
       </Card>
       <Card title={`Current Plan (${state.currentPlanIndex + 1} of ${state.seatingPlans.length})`}>
-        {/* Navigation buttons above the grid - same layout as ConstraintManager */}
+        {/* Previous/Next buttons above the grid - right justified */}
         {state.seatingPlans.length > 1 && (
-          <div className="flex justify-center space-x-2 mb-4">
+          <div className="flex justify-end space-x-2 mb-4">
             <button
               className="danstyle1c-btn w-24 mx-1"
               onClick={() => handleNavigatePlan(-1)}
@@ -287,7 +287,30 @@ const SeatingPlanViewer: React.FC = () => {
               <ArrowLeft className="w-4 h-4 mr-1" />
               Previous
             </button>
+            <button
+              className="danstyle1c-btn w-24 mx-1"
+              onClick={() => handleNavigatePlan(1)}
+              disabled={state.currentPlanIndex >= state.seatingPlans.length - 1}
+            >
+              Next
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </button>
+          </div>
+        )}
 
+        {/* Guest pagination controls - top (matching Constraints page) */}
+        {shouldShowPagination && state.user && state.guests.length > 0 && (
+          <div className="flex justify-end space-x-2 mb-4">
+            <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0}><ChevronLeft className="w-4 h-4 mr-1" /> Previous</button>
+            <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1}>Next <ChevronRight className="w-4 h-4 ml-1" /></button>
+          </div>
+        )}
+
+        {renderCurrentPlan()}
+        
+        {/* Multi-buttons below the grid */}
+        {state.seatingPlans.length > 1 && (
+          <div className="flex justify-center space-x-2 mt-4">
             {/* Page number buttons */}
             {state.seatingPlans.length <= 7 ? (
               // Show all page numbers if 7 or fewer
@@ -355,27 +378,8 @@ const SeatingPlanViewer: React.FC = () => {
                 )}
               </>
             )}
-
-            <button
-              className="danstyle1c-btn w-24 mx-1"
-              onClick={() => handleNavigatePlan(1)}
-              disabled={state.currentPlanIndex >= state.seatingPlans.length - 1}
-            >
-              Next
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </button>
           </div>
         )}
-
-        {/* Guest pagination controls - top (matching Constraints page) */}
-        {shouldShowPagination && state.user && state.guests.length > 0 && (
-          <div className="flex justify-end space-x-2 mb-4">
-            <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(-1)} disabled={currentPage === 0}><ChevronLeft className="w-4 h-4 mr-1" /> Previous</button>
-            <button className="danstyle1c-btn w-24 mx-1" onClick={() => handleNavigatePage(1)} disabled={currentPage >= totalPages - 1}>Next <ChevronRight className="w-4 h-4 ml-1" /></button>
-          </div>
-        )}
-
-        {renderCurrentPlan()}
         
         {/* Guest pagination controls - bottom (matching Constraints page) */}
         {needsPagination && (

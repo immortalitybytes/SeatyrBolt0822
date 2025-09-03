@@ -1154,7 +1154,7 @@ const GuestManager: React.FC = () => {
           setShowSavedSettings(!showSavedSettings);
         }}
       >
-        <span className="text-[#586D78] font-medium"><FolderOpen className="w-4 h-4 mr-2 inline-block" /> Saved Settings</span>
+        <span className="text-[#586D78] font-bold"><FolderOpen className="w-4 h-4 mr-2 inline-block" /> Saved Settings</span>
         {showSavedSettings ? (
           <ChevronUp className="w-4 h-4 text-[#586D78]" />
         ) : (

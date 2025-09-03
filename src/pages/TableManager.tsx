@@ -267,14 +267,7 @@ const TableManager: React.FC = () => {
 
   return (
     <div className="space-y-14">
-      {isPremium && state.user && (
-        <div className="flex items-center">
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium">
-            <Crown className="w-4 h-4 mr-1" />
-            Premium
-          </span>
-        </div>
-      )}
+
       
       {/* Tables Section - Accordion */}
       <div>

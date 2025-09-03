@@ -494,11 +494,7 @@ const ConstraintManager: React.FC = () => {
   // Render
   return (
     <div className="space-y-6">
-      {isPremium && (state as any).user && (
-        <div className="flex items-center">
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium"><Crown className="w-4 h-4 mr-1" /> Premium</span>
-        </div>
-      )}
+
       
       <Card>
         <div className="space-y-4">
@@ -520,7 +516,7 @@ const ConstraintManager: React.FC = () => {
           <div className="flex items-start space-x-4 my-4">
             <Info className="text-gray-700 mt-1 flex-shrink-0" />
             <div className="ml-20">
-              <h3 className="font-bold text-gray-800 text-[18.75px]">How To Use Constraints</h3>
+              <h3 className="font-bold text-[#586D78] text-[18.75px]">How To Use Constraints</h3>
               <div className="text-gray-600 text-[18.75px] mt-2 leading-relaxed">
                 <div>Click a cell to cycle between constraints:</div>
                 <div className="mt-1 flex flex-wrap gap-12">
@@ -587,9 +583,7 @@ const ConstraintManager: React.FC = () => {
                 )}
                 <button className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('first-name')}>First Name</button>
                 <button className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('last-name')}>Last Name</button>
-                {state.user && (
-                  <button className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${(state.seatingPlans?.length || 0) === 0 ? 'opacity-50' : ''}`} onClick={() => setSortOption('current-table')} disabled={(state.seatingPlans?.length || 0) === 0}>Current Table</button>
-                )}
+                <button className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${(state.seatingPlans?.length || 0) === 0 ? 'opacity-50' : ''}`} onClick={() => setSortOption('current-table')} disabled={(state.seatingPlans?.length || 0) === 0}>Current Table</button>
               </div>
             </div>
           </div>
