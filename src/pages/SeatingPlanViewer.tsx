@@ -55,18 +55,28 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     
     // Add ordinal if needed
     if (showOrdinal && ordinalToShow) {
-      result.push(<span key="ordinal-sep">+</span>);
-      if (ordinalToShow === tokenToBold) {
-        // Split ordinal to bold only the number part
-        const ordinalMatch = ordinalToShow.match(/^(\d+(?:st|nd|rd|th))\s+(of\s+\d+)$/);
-        if (ordinalMatch) {
-          result.push(<strong key="ordinal-bold">{ordinalMatch[1]}</strong>);
-          result.push(<span key="ordinal-of"> {ordinalMatch[2]}</span>);
+      // Special case: if this is "+1", convert to "plus One"
+      if (ordinalToShow === "1st of 1") {
+        result.push(<span key="ordinal-sep"> plus </span>);
+        if (ordinalToShow === tokenToBold) {
+          result.push(<strong key="ordinal-bold">One</strong>);
         } else {
-          result.push(<strong key="ordinal-bold">{ordinalToShow}</strong>);
+          result.push(<span key="ordinal-norm">One</span>);
         }
       } else {
-        result.push(<span key="ordinal-norm">{ordinalToShow}</span>);
+        result.push(<span key="ordinal-sep">+</span>);
+        if (ordinalToShow === tokenToBold) {
+          // Split ordinal to bold only the number part
+          const ordinalMatch = ordinalToShow.match(/^(\d+(?:st|nd|rd|th))\s+(of\s+\d+)$/);
+          if (ordinalMatch) {
+            result.push(<strong key="ordinal-bold">{ordinalMatch[1]}</strong>);
+            result.push(<span key="ordinal-of"> {ordinalMatch[2]}</span>);
+          } else {
+            result.push(<strong key="ordinal-bold">{ordinalToShow}</strong>);
+          }
+        } else {
+          result.push(<span key="ordinal-norm">{ordinalToShow}</span>);
+        }
       }
     }
     
