@@ -336,10 +336,16 @@ const ConstraintManager: React.FC = () => {
             {guest1.count && guest1.count > 1 && (<div className="text-xs text-gray-700 font-medium">Party size: {guest1.count} {guest1.count === 1 ? 'person' : 'people'}</div>)}
             {(() => { 
               const a = getGuestTableAssignment(guest1.name); 
-              if (!a) return <div className="text-xs text-gray-200">Table: unassigned</div>; 
-              const color = a.type === 'assigned' ? 'text-gray-800' : a.type === 'plan' ? 'text-gray-800' : 'text-gray-200'; 
-              const tableText = a.type === 'none' ? 'unassigned' : a.text;
-              return <div className={`text-xs ${color} whitespace-normal break-words`} title={tableText}>Table: {tableText}</div>; 
+              if (!a) return <div className="text-xs text-gray-700 opacity-40">Table: Unassigned</div>; 
+              
+              const getFontWeight = () => {
+                if (a.type === 'assigned') return 'text-gray-700 font-normal'; // Standard dark font for user assignments
+                if (a.type === 'plan') return 'text-gray-700 font-normal opacity-65'; // 35% lighter for Seatyr allocations
+                return 'text-gray-700 font-normal opacity-40'; // 60% lighter for unassigned
+              };
+              
+              const tableText = a.type === 'none' ? 'Unassigned' : a.text;
+              return <div className={`text-xs ${getFontWeight()} whitespace-normal break-words`} title={tableText}>Table: {tableText}</div>; 
             })()}
           </div>
         </td>
