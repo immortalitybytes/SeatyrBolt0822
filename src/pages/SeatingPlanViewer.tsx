@@ -50,13 +50,13 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     if (hasAdditionSignifier) {
       if (hasPlusOne) {
         // Special case: For "+1", convert to "plus One" format on ALL cells
+        const displayName = originalName.replace(/\+1|\&1|\b(?:and|plus)\s+(?:one|1)\b/gi, ' plus One');
+        
         if (seatIndex < baseTokens.length) {
-          // For base name seats, show the full original name but convert "+1" to "plus One"
+          // For base name seats, show the full display name with proper bolding
           const nameToBold = baseTokens[seatIndex];
-          const displayName = originalName.replace(/\+1|\&1|\b(?:and|plus)\s+(?:one|1)\b/gi, ' plus One');
-          
-          // Find the position of the name to bold in the display name
           const nameIndex = displayName.indexOf(nameToBold);
+          
           if (nameIndex !== -1) {
             const beforeName = displayName.substring(0, nameIndex);
             const afterName = displayName.substring(nameIndex + nameToBold.length);
@@ -69,13 +69,26 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
               result.push(<span key="after-name">{afterName}</span>);
             }
           } else {
-            // Fallback: show the full display name and bold the token
+            // Fallback: show the full display name
             result.push(<span key="full-name">{displayName}</span>);
           }
         } else {
-          // For the "+1" seat, show the full original name converted to "plus One"
-          const displayName = originalName.replace(/\+1|\&1|\b(?:and|plus)\s+(?:one|1)\b/gi, ' plus One');
-          result.push(<span key="full-name">{displayName}</span>);
+          // For the "+1" seat, show the full display name with "One" bolded
+          const oneIndex = displayName.indexOf('One');
+          if (oneIndex !== -1) {
+            const beforeOne = displayName.substring(0, oneIndex);
+            const afterOne = displayName.substring(oneIndex + 3);
+            
+            if (beforeOne) {
+              result.push(<span key="before-one">{beforeOne}</span>);
+            }
+            result.push(<strong key="bold-one">One</strong>);
+            if (afterOne) {
+              result.push(<span key="after-one">{afterOne}</span>);
+            }
+          } else {
+            result.push(<span key="full-name">{displayName}</span>);
+          }
         }
       } else {
         // For other addition signifiers (like +2, +3, etc.), preserve the full name with addition signifier
