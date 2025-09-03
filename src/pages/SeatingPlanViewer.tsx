@@ -17,6 +17,13 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     const baseTokens = seatingTokensFromGuestUnit(rawName);
     const extraTokens = nOfNTokensFromSuffix(rawName);
     
+    // Check if this has addition signifiers with numerals
+    const hasAdditionSignifier = /[&+]|\b(?:and|plus)\b/i.test(originalName);
+    const hasPlusOne = hasAdditionSignifier && 
+                      (originalName.includes('+1') || 
+                       originalName.includes('&1') || 
+                       /\b(?:and|plus)\s+(?:one|1)\b/i.test(originalName));
+    
     // Calculate total seats needed
     const totalSeats = baseTokens.length + extraTokens.length;
     
@@ -39,34 +46,94 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     // Build the display
     const result: React.ReactNode[] = [];
     
-    // Add base name tokens
-    baseTokens.forEach((token, index) => {
-      if (index > 0) {
-        // Add connector before each token (except first)
-        result.push(<span key={`conn-${index}`}> & </span>);
-      }
-      
-      if (token === tokenToBold) {
-        result.push(<strong key={`bold-${index}`}>{token}</strong>);
-      } else {
-        result.push(<span key={`norm-${index}`}>{token}</span>);
-      }
-    });
-    
-    // Add ordinal if needed
-    if (showOrdinal && ordinalToShow) {
-      // Special case: if this is "+1", convert to "plus One"
-      if (ordinalToShow === "1st of 1") {
-        result.push(<span key="ordinal-sep"> plus </span>);
-        if (ordinalToShow === tokenToBold) {
-          result.push(<strong key="ordinal-bold">One</strong>);
+    // For cases with addition signifiers, preserve the full original name structure
+    if (hasAdditionSignifier) {
+      if (hasPlusOne) {
+        // Special case: For "+1", convert to "plus One" format on ALL cells
+        if (seatIndex < baseTokens.length) {
+          // For base name seats, show the full original name but convert "+1" to "plus One"
+          const nameToBold = baseTokens[seatIndex];
+          const displayName = originalName.replace(/\+1|\&1|\b(?:and|plus)\s+(?:one|1)\b/gi, ' plus One');
+          
+          // Find the position of the name to bold in the display name
+          const nameIndex = displayName.indexOf(nameToBold);
+          if (nameIndex !== -1) {
+            const beforeName = displayName.substring(0, nameIndex);
+            const afterName = displayName.substring(nameIndex + nameToBold.length);
+            
+            if (beforeName) {
+              result.push(<span key="before-name">{beforeName}</span>);
+            }
+            result.push(<strong key="bold-name">{nameToBold}</strong>);
+            if (afterName) {
+              result.push(<span key="after-name">{afterName}</span>);
+            }
+          } else {
+            // Fallback: show the full display name and bold the token
+            result.push(<span key="full-name">{displayName}</span>);
+          }
         } else {
-          result.push(<span key="ordinal-norm">One</span>);
+          // For the "+1" seat, show the full original name converted to "plus One"
+          const displayName = originalName.replace(/\+1|\&1|\b(?:and|plus)\s+(?:one|1)\b/gi, ' plus One');
+          result.push(<span key="full-name">{displayName}</span>);
         }
       } else {
+        // For other addition signifiers (like +2, +3, etc.), preserve the full name with addition signifier
+        if (seatIndex < baseTokens.length) {
+          // For base name seats, show the full original name with addition signifier
+          const nameToBold = baseTokens[seatIndex];
+          
+          // Find the position of the name to bold in the full name
+          const nameIndex = originalName.indexOf(nameToBold);
+          if (nameIndex !== -1) {
+            const beforeName = originalName.substring(0, nameIndex);
+            const afterName = originalName.substring(nameIndex + nameToBold.length);
+            
+            if (beforeName) {
+              result.push(<span key="before-name">{beforeName}</span>);
+            }
+            result.push(<strong key="bold-name">{nameToBold}</strong>);
+            if (afterName) {
+              result.push(<span key="after-name">{afterName}</span>);
+            }
+          } else {
+            // Fallback: just show the full name and bold the token
+            result.push(<span key="full-name">{originalName}</span>);
+          }
+        } else {
+          // For ordinal seats, show the full name + ordinal
+          result.push(<span key="full-name">{originalName}</span>);
+          result.push(<span key="ordinal-sep">+ </span>);
+          if (ordinalToShow === tokenToBold) {
+            const ordinalMatch = ordinalToShow.match(/^(\d+(?:st|nd|rd|th))\s+(of\s+\d+)$/);
+            if (ordinalMatch) {
+              result.push(<strong key="ordinal-bold">{ordinalMatch[1]}</strong>);
+              result.push(<span key="ordinal-of"> {ordinalMatch[2]}</span>);
+            } else {
+              result.push(<strong key="ordinal-bold">{ordinalToShow}</strong>);
+            }
+          } else {
+            result.push(<span key="ordinal-norm">{ordinalToShow}</span>);
+          }
+        }
+      }
+    } else {
+      // Original logic for cases without addition signifiers
+      baseTokens.forEach((token, index) => {
+        if (index > 0) {
+          result.push(<span key={`conn-${index}`}> & </span>);
+        }
+        
+        if (token === tokenToBold) {
+          result.push(<strong key={`bold-${index}`}>{token}</strong>);
+        } else {
+          result.push(<span key={`norm-${index}`}>{token}</span>);
+        }
+      });
+      
+      if (showOrdinal && ordinalToShow) {
         result.push(<span key="ordinal-sep">+</span>);
         if (ordinalToShow === tokenToBold) {
-          // Split ordinal to bold only the number part
           const ordinalMatch = ordinalToShow.match(/^(\d+(?:st|nd|rd|th))\s+(of\s+\d+)$/);
           if (ordinalMatch) {
             result.push(<strong key="ordinal-bold">{ordinalMatch[1]}</strong>);
