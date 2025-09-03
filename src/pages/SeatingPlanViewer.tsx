@@ -57,7 +57,14 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     if (showOrdinal && ordinalToShow) {
       result.push(<span key="ordinal-sep">+</span>);
       if (ordinalToShow === tokenToBold) {
-        result.push(<strong key="ordinal-bold">{ordinalToShow}</strong>);
+        // Split ordinal to bold only the number part
+        const ordinalMatch = ordinalToShow.match(/^(\d+(?:st|nd|rd|th))\s+(of\s+\d+)$/);
+        if (ordinalMatch) {
+          result.push(<strong key="ordinal-bold">{ordinalMatch[1]}</strong>);
+          result.push(<span key="ordinal-of"> {ordinalMatch[2]}</span>);
+        } else {
+          result.push(<strong key="ordinal-bold">{ordinalToShow}</strong>);
+        }
       } else {
         result.push(<span key="ordinal-norm">{ordinalToShow}</span>);
       }
