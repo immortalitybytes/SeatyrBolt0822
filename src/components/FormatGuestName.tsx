@@ -88,7 +88,7 @@ export const FormatConstraint: React.FC<FormatConstraintProps> = ({
     switch (type) {
       case 'must': return '&'; // Using ampersand as requested
       case 'cannot': return '✕';
-      case 'adjacent': return '⭐';
+      case 'adjacent': return '*';
       default: return '';
     }
   };

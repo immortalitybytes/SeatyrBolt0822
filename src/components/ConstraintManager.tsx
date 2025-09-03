@@ -228,7 +228,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest.name].join(', ')}`}>
-            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
+            {adjacentCount === 1 ? '*' : '**'}
           </span>
         );
       }
@@ -300,7 +300,7 @@ const ConstraintManager: React.FC = () => {
       if (adjacentCount > 0) {
         adjacentIndicator = (
           <span className="text-[#b3b508] font-bold ml-1" title={`Adjacent to: ${adjacents[guest1.name].join(', ')}`}>
-            {adjacentCount === 1 ? '⭐' : '⭐⭐'}
+            {adjacentCount === 1 ? '*' : '**'}
           </span>
         );
       }
@@ -368,13 +368,13 @@ const ConstraintManager: React.FC = () => {
             bgColor = 'bg-[#e6130b]';
             cellContent = <span className="text-black font-bold">X</span>;
           } else if (hasAdj) {
-            // Show adjacency immediately (⭐&⭐) even if there is no 'must'
+            // Show adjacency immediately (*&*) even if there is no 'must'
             bgColor = 'bg-[#22cf04]'; // use the same green so the user sees it instantly
             cellContent = (
               <div className="flex items-center justify-center space-x-1">
-                <span className="text-[#b3b508] font-bold">⭐</span>
+                <span className="text-[#b3b508] font-bold">*</span>
                 <span className="text-black font-bold">&</span>
-                <span className="text-[#b3b508] font-bold">⭐</span>
+                <span className="text-[#b3b508] font-bold">*</span>
               </div>
             );
           } else if (constraintValue === 'must') {
@@ -732,7 +732,7 @@ const ConstraintManager: React.FC = () => {
                     <li>And then Long-press or double-click another guest name to create the adjacent pairing</li>
                   </ol>
                 </li>
-                <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">⭐</span></li>
+                <li>Guests with adjacent constraints are marked with <span className="text-[#b3b508] font-bold">*</span></li>
               </ul>
             </div>
           </div>

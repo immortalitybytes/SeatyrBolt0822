@@ -483,7 +483,7 @@ const TableManager: React.FC = () => {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-green-700 mb-1">Must Sit With</label>
-                          {adjacent.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{adjacent.map(n => <span key={`adj-${n}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border bg-yellow-50 border-yellow-200 text-yellow-900" title="Adjacent preference">⭐ {n}</span>)}</div>}
+                          {adjacent.length > 0 && <div className="flex flex-wrap gap-1 mb-1">{adjacent.map(n => <span key={`adj-${n}`} className="inline-flex items-center rounded-full px-2 py-0.5 text-xs border bg-yellow-50 border-yellow-200 text-yellow-900" title="Adjacent preference">* {n}</span>)}</div>}
                           <ConstraintChipsInput tone="must" ownerName={guest.name} value={must} onChange={names => updateConstraints(guest.name, names, 'must')} allGuests={state.guests} activeFieldKey={activeFieldKey} setActiveFieldKey={setActiveFieldKey} />
                         </div>
                 <div>

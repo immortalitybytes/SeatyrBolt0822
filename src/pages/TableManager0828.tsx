@@ -801,7 +801,7 @@ const TableManager: React.FC = () => {
                           {/* Display adjacent pairing information with stars */}
                           {adjacentGuests && adjacentGuests.length > 0 && (
                             <div className="text-xs text-amber-600 mt-1">
-                              ⭐ {adjacentGuests.join(' ⭐ ')} ⭐
+                              * {adjacentGuests.join(' * ')} *
                             </div>
                           )}
                           
