@@ -585,16 +585,38 @@ const GuestManager: React.FC = () => {
     hideArrows();
     
     const testGuests = [
-      { name: 'Alice Smith', count: 1 },
-      { name: 'Bob & Carol Johnson', count: 2 },
-      { name: 'David Chen & Jessica Brown', count: 2 },
-      { name: 'Emma Wilson', count: 1 },
-      { name: 'Frank & Grace & Henry Davis', count: 3 },
-      { name: 'Isabella Martinez', count: 1 },
-      { name: 'Jack & Kate & Liam & Mia Thompson', count: 4 },
-      { name: 'Noah & Olivia Parker', count: 2 },
-      { name: 'Paul & Quinn & Rachel & Sam & Tina Underwood', count: 5 },
-      { name: 'Victor & Wendy Young', count: 2 }
+      { name: 'Maria Garcia+1', count: 2 },
+      { name: 'James Johnson&1', count: 2 },
+      { name: 'Wei & Sara Chen', count: 2 },
+      { name: 'Sarah&Bobby Williams+1', count: 3 },
+      { name: 'Carlos Rodriguez+2', count: 3 },
+      { name: 'Emily Davis& 2', count: 3 },
+      { name: 'Raj Patel +1', count: 2 },
+      { name: 'Ashley Brown &1', count: 2 },
+      { name: 'Jose Martinez & Billy & Jessica Li', count: 3 },
+      { name: 'David Kim + 1', count: 2 },
+      { name: 'Michelle Jones+ 1', count: 2 },
+      { name: 'Luis Hernandez', count: 1 },
+      { name: 'Amanda %Zeta Taylor+ 2', count: 3 },
+      { name: 'Priya Sharma plus 1', count: 2 },
+      { name: 'Michael Miller + 2', count: 3 },
+      { name: 'Ana Macron plus 1', count: 2 },
+      { name: 'Christopher Anderson + 2', count: 3 },
+      { name: 'Mo Rashid', count: 1 },
+      { name: 'Cher', count: 1 },
+      { name: 'Tyler Goldberg+3', count: 4 },
+      { name: 'Stephanie Jackson', count: 1 },
+      { name: 'Arjun Gupta', count: 1 },
+      { name: 'Nicole White', count: 1 },
+      { name: 'Diego Ramirez', count: 1 },
+      { name: 'Samantha Harris', count: 1 },
+      { name: 'Jin Wang', count: 1 },
+      { name: 'Rachel Martin &2', count: 3 },
+      { name: 'Sergio Gambuto', count: 1 },
+      { name: 'Kayla & Daveed Lopez', count: 2 },
+      { name: 'Ravi Berns-Krishnan+wife', count: 2 },
+      { name: 'Kenji Nakamura+2', count: 3 },
+      { name: 'Megan Kaczmarek', count: 1 }
     ];
     
     // Clear existing guests and add test list

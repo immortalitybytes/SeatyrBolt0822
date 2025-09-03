@@ -31,20 +31,29 @@ export function getLastNameForSorting(fullName: string): string {
     return '';
   }
   
-  // Handle special '%' delimiter for custom sorting
-  if (trimmedName.includes('%')) {
-    const parts = trimmedName.split('%');
-    const afterDelimiter = (parts[1] || '').trim();
-    
-    if (afterDelimiter) {
-      const firstWord = afterDelimiter.split(/\s+/)[0];
-      return firstWord || trimmedName.split(/\s+/).pop() || trimmedName;
+  // 2.a.) Priority: Look for first instance of word prefixed with % character
+  const percentMatch = trimmedName.match(/%(\w+)/);
+  if (percentMatch) {
+    return percentMatch[1];
+  }
+  
+  // 2.b.) Look for multi-word guest names separated by addition signifiers
+  // Split by &, +, "and", "plus" (case insensitive)
+  const separators = /[&+]|\b(?:and|plus)\b/gi;
+  const parts = trimmedName.split(separators);
+  
+  // Find the first multi-word part (more than one word)
+  for (const part of parts) {
+    const words = part.trim().split(/\s+/).filter(word => word.length > 0);
+    if (words.length > 1) {
+      // Return the last word of the first multi-word part
+      return words[words.length - 1];
     }
   }
   
-  // Default: return last word of the name
+  // 2.c.) If no multi-word names, treat first name as last name
   const words = trimmedName.split(/\s+/).filter(word => word.length > 0);
-  return words.length > 0 ? words[words.length - 1] : trimmedName;
+  return words.length > 0 ? words[0] : trimmedName;
 }
 
 /**
