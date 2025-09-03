@@ -267,16 +267,14 @@ const TableManager: React.FC = () => {
 
   return (
     <div className="space-y-14">
-      <h1 className="text-2xl font-bold text-[#586D78] flex items-center">
-        <TableIcon className="mr-2" />
-        Tables
-        {isPremium && state.user && (
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2">
+      {isPremium && state.user && (
+        <div className="flex items-center">
+          <span className="flex items-center danstyle1c-btn danstyle1c-premium">
             <Crown className="w-4 h-4 mr-1" />
             Premium
           </span>
-        )}
-      </h1>
+        </div>
+      )}
       
       {/* Tables Section - Accordion */}
       <div>
@@ -297,7 +295,10 @@ const TableManager: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div className="space-y-4 w-1/2">
                   <p className="text-gray-700">
-                    Add, remove, and manage tables for your seating arrangement. Each table can have between 1 and 20 seats.
+                    Add, remove, and manage tables for your seating arrangement.
+                  </p>
+                  <p className="text-gray-700">
+                    Each table can have between 1 and 20 seats.
                   </p>
                   
                   {isPremium && state.user && (
@@ -331,7 +332,7 @@ const TableManager: React.FC = () => {
             
             <Card>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-[#586D78]">Tables ({state.tables.length})</h2>
+                <h2 className="text-lg font-normal text-[#586D78]">Tables ({state.tables.length})</h2>
                 <div className="text-[#586D78]">
                   Total Seats: {totalSeats}
                 </div>
@@ -428,9 +429,10 @@ const TableManager: React.FC = () => {
         {isAssignmentsOpen && (
           <div className="mt-4 space-y-4">
             <Card>
-              <div className="text-sm text-[#586D78] space-y-1">
+              <div className="text-sm text-black space-y-1">
                 <p>You can specify which tables each guest can be assigned to.</p>
-                <p>Simply, enter table numbers separated by commas, or leave blank for automatic assignment. Tip: You can assign a guest to a range of tables by entering comma-separated numbers (e.g., "1,3,5").</p>
+                <p>Tip: You can assign a guest to a range of tables by entering comma-separated numbers (e.g., "1,3,5").</p>
+                <p>Simply, enter table numbers separated by commas, or leave blank for automatic assignment.</p>
                 <p>This means the seating algorithm will place them at one of these tables.</p>
               </div>
             </Card>

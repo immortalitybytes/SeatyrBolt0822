@@ -504,7 +504,7 @@ const SavedSettingsAccordion: React.FC<SavedSettingsAccordionProps> = ({ isDefau
         className={accordionHeaderStyles}
         onClick={toggleAccordion}
       >
-        <h2 className="text-lg font-semibold text-[#586D78] flex items-center">
+        <h2 className="text-lg font-bold text-[#586D78] flex items-center">
           <FolderOpen className="mr-2 h-5 w-5" />
           Saved Settings
         </h2>

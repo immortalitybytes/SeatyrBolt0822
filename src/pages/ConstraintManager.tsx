@@ -494,12 +494,11 @@ const ConstraintManager: React.FC = () => {
   // Render
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-        <ClipboardList className="mr-2" /> Constraint Manager
-        {isPremium && (state as any).user && (
-          <span className="flex items-center danstyle1c-btn danstyle1c-premium ml-2"><Crown className="w-4 h-4 mr-1" /> Premium</span>
-        )}
-      </h1>
+      {isPremium && (state as any).user && (
+        <div className="flex items-center">
+          <span className="flex items-center danstyle1c-btn danstyle1c-premium"><Crown className="w-4 h-4 mr-1" /> Premium</span>
+        </div>
+      )}
       
       <Card>
         <div className="space-y-4">
@@ -518,10 +517,10 @@ const ConstraintManager: React.FC = () => {
 
 
 
-          <div className="flex items-start space-x-4">
+          <div className="flex items-start space-x-4 my-4">
             <Info className="text-gray-700 mt-1 flex-shrink-0" />
-            <div>
-              <h3 className="font-medium text-gray-800 text-[18.75px]">How to use constraints</h3>
+            <div className="ml-20">
+              <h3 className="font-bold text-gray-800 text-[18.75px]">How To Use Constraints</h3>
               <div className="text-gray-600 text-[18.75px] mt-2 leading-relaxed">
                 <div>Click a cell to cycle between constraints:</div>
                 <div className="mt-1 flex flex-wrap gap-12">
@@ -565,7 +564,7 @@ const ConstraintManager: React.FC = () => {
                           <div className="mt-2">
                             <div>1) Double-click a guest name to select it.</div>
                             <div>2) Double-click another guest and the adjacency will be set automatically.</div>
-                            <div className="mt-2">Guests with adjacent constraints are marked with ⭐</div>
+                            <div className="mt-2">Guests with adjacent constraints are marked with *</div>
                           </div>
                         </div>
                       )}
@@ -583,10 +582,14 @@ const ConstraintManager: React.FC = () => {
           <div className="flex items-center space-x-2">
               <span className="text-gray-700 font-medium flex items-center"><ArrowDownAZ className="w-5 h-5 mr-2" /> Sort by:</span>
             <div className="flex space-x-2">
-                <button className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('as-entered')}>As Entered</button>
+                {state.user && (
+                  <button className={sortOption === 'as-entered' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('as-entered')}>As Entered</button>
+                )}
                 <button className={sortOption === 'first-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('first-name')}>First Name</button>
                 <button className={sortOption === 'last-name' ? 'danstyle1c-btn selected' : 'danstyle1c-btn'} onClick={() => setSortOption('last-name')}>Last Name</button>
-                <button className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${(state.seatingPlans?.length || 0) === 0 ? 'opacity-50' : ''}`} onClick={() => setSortOption('current-table')} disabled={(state.seatingPlans?.length || 0) === 0}>Current Table</button>
+                {state.user && (
+                  <button className={`danstyle1c-btn ${sortOption === 'current-table' ? 'selected' : ''} ${(state.seatingPlans?.length || 0) === 0 ? 'opacity-50' : ''}`} onClick={() => setSortOption('current-table')} disabled={(state.seatingPlans?.length || 0) === 0}>Current Table</button>
+                )}
               </div>
             </div>
           </div>
