@@ -740,6 +740,38 @@ const GuestManager: React.FC = () => {
     return Number.POSITIVE_INFINITY;
   };
 
+  // Helper function to get table assignment display info
+  const getGuestTableAssignment = (guestName: string) => {
+    // Check for user-assigned table numbers first
+    if (state.assignments && state.assignments[guestName]) {
+      const assignedTableIds = state.assignments[guestName].split(',').map((t: string) => t.trim());
+      const tableNames = assignedTableIds.map((id: string) => {
+        const numId = parseInt(id);
+        if (!isNaN(numId)) {
+          const table = state.tables.find((t: any) => t.id === numId);
+          return table?.name ? `${table.name} (${numId})` : `Table ${numId}`;
+        }
+        return id;
+      });
+      return { text: tableNames.join(', '), type: 'assigned' as const };
+    }
+    
+    // Check if assigned in current seating plan
+    if (state.seatingPlans && state.seatingPlans.length > 0) {
+      const plan = state.seatingPlans[state.currentPlanIndex];
+      for (const table of plan.tables) {
+        const found = table.seats.find((s: any) => s.name === guestName);
+        if (found) {
+          const tableObj = state.tables.find((t: any) => t.id === table.id);
+          const tableName = tableObj?.name ? `${tableObj.name} (${table.id})` : `Table ${table.id}`;
+          return { text: tableName, type: 'plan' as const };
+        }
+      }
+    }
+    
+    return { text: 'Unassigned', type: 'none' as const };
+  };
+
   // Function to get sorted guests
   const getSortedGuests = () => {
     if (sortOption === 'as-entered') {
@@ -1363,6 +1395,23 @@ const GuestManager: React.FC = () => {
                         Party size: {guest.count} {guest.count === 1 ? 'person' : 'people'}
                       </span>
                     )}
+                    
+                    {/* Table Assignment Display */}
+                    {(() => {
+                      const assignment = getGuestTableAssignment(guest.name);
+                      const getFontWeight = () => {
+                        if (assignment.type === 'assigned') return 'font-normal'; // Standard dark font for user assignments
+                        if (assignment.type === 'plan') return 'font-normal opacity-65'; // 35% lighter for Seatyr allocations
+                        return 'font-normal opacity-40'; // 60% lighter for unassigned
+                      };
+                      
+                      return (
+                        <span className={`text-sm text-gray-700 mt-1 ${getFontWeight()}`}>
+                          Table: {assignment.text}
+                        </span>
+                      );
+                    })()}
+                    
                     <div className="flex space-x-2 mt-3">
                       <button
                         className="danstyle1c-btn danstyle1c-remove btn-small"
