@@ -489,7 +489,7 @@ const GuestManager: React.FC = () => {
       return names.map(name => {
         // Use the enhanced countHeads function for accurate seat counting
         const count = countHeads(name);
-        return { name, count };
+        return { id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name, count };
       }).filter(g => g.name);
     } catch (e) {
       console.error('Error parsing input:', e);
@@ -585,38 +585,38 @@ const GuestManager: React.FC = () => {
     hideArrows();
     
     const testGuests = [
-      { name: 'Maria Garcia+1', count: 2 },
-      { name: 'James Johnson&1', count: 2 },
-      { name: 'Wei & Sara Chen', count: 2 },
-      { name: 'Sarah&Bobby Williams+1', count: 3 },
-      { name: 'Carlos Rodriguez+2', count: 3 },
-      { name: 'Emily Davis& 2', count: 3 },
-      { name: 'Raj Patel +1', count: 2 },
-      { name: 'Ashley Brown &1', count: 2 },
-      { name: 'Jose Martinez & Billy & Jessica Li', count: 3 },
-      { name: 'David Kim + 1', count: 2 },
-      { name: 'Michelle Jones+ 1', count: 2 },
-      { name: 'Luis Hernandez', count: 1 },
-      { name: 'Amanda %Zeta Taylor+ 2', count: 3 },
-      { name: 'Priya Sharma plus 1', count: 2 },
-      { name: 'Michael Miller + 2', count: 3 },
-      { name: 'Ana Macron plus 1', count: 2 },
-      { name: 'Christopher Anderson + 2', count: 3 },
-      { name: 'Mo Rashid', count: 1 },
-      { name: 'Cher', count: 1 },
-      { name: 'Tyler Goldberg+3', count: 4 },
-      { name: 'Stephanie Jackson', count: 1 },
-      { name: 'Arjun Gupta', count: 1 },
-      { name: 'Nicole White', count: 1 },
-      { name: 'Diego Ramirez', count: 1 },
-      { name: 'Samantha Harris', count: 1 },
-      { name: 'Jin Wang', count: 1 },
-      { name: 'Rachel Martin &2', count: 3 },
-      { name: 'Sergio Gambuto', count: 1 },
-      { name: 'Kayla & Daveed Lopez', count: 2 },
-      { name: 'Ravi Berns-Krishnan+wife', count: 2 },
-      { name: 'Kenji Nakamura+2', count: 3 },
-      { name: 'Megan Kaczmarek', count: 1 }
+      { id: 'guest_test_1', name: 'Maria Garcia+1', count: 2 },
+      { id: 'guest_test_2', name: 'James Johnson&1', count: 2 },
+      { id: 'guest_test_3', name: 'Wei & Sara Chen', count: 2 },
+      { id: 'guest_test_4', name: 'Sarah&Bobby Williams+1', count: 3 },
+      { id: 'guest_test_5', name: 'Carlos Rodriguez+2', count: 3 },
+      { id: 'guest_test_6', name: 'Emily Davis& 2', count: 3 },
+      { id: 'guest_test_7', name: 'Raj Patel +1', count: 2 },
+      { id: 'guest_test_8', name: 'Ashley Brown &1', count: 2 },
+      { id: 'guest_test_9', name: 'Jose Martinez & Billy & Jessica Li', count: 3 },
+      { id: 'guest_test_10', name: 'David Kim + 1', count: 2 },
+      { id: 'guest_test_11', name: 'Michelle Jones+ 1', count: 2 },
+      { id: 'guest_test_12', name: 'Luis Hernandez', count: 1 },
+      { id: 'guest_test_13', name: 'Amanda %Zeta Taylor+ 2', count: 3 },
+      { id: 'guest_test_14', name: 'Priya Sharma plus 1', count: 2 },
+      { id: 'guest_test_15', name: 'Michael Miller + 2', count: 3 },
+      { id: 'guest_test_16', name: 'Ana Macron plus 1', count: 2 },
+      { id: 'guest_test_17', name: 'Christopher Anderson + 2', count: 3 },
+      { id: 'guest_test_18', name: 'Mo Rashid', count: 1 },
+      { id: 'guest_test_19', name: 'Cher', count: 1 },
+      { id: 'guest_test_20', name: 'Tyler Goldberg+3', count: 4 },
+      { id: 'guest_test_21', name: 'Stephanie Jackson', count: 1 },
+      { id: 'guest_test_22', name: 'Arjun Gupta', count: 1 },
+      { id: 'guest_test_23', name: 'Nicole White', count: 1 },
+      { id: 'guest_test_24', name: 'Diego Ramirez', count: 1 },
+      { id: 'guest_test_25', name: 'Samantha Harris', count: 1 },
+      { id: 'guest_test_26', name: 'Jin Wang', count: 1 },
+      { id: 'guest_test_27', name: 'Rachel Martin &2', count: 3 },
+      { id: 'guest_test_28', name: 'Sergio Gambuto', count: 1 },
+      { id: 'guest_test_29', name: 'Kayla & Daveed Lopez', count: 2 },
+      { id: 'guest_test_30', name: 'Ravi Berns-Krishnan+wife', count: 2 },
+      { id: 'guest_test_31', name: 'Kenji Nakamura+2', count: 3 },
+      { id: 'guest_test_32', name: 'Megan Kaczmarek', count: 1 }
     ];
     
     // Clear existing guests and add test list
