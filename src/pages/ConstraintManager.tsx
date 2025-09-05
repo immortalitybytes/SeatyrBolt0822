@@ -176,8 +176,28 @@ const ConstraintManager: React.FC = () => {
   // Sorting helpers
   const getGuestTableAssignment = (guestName: string) => {
     if (!isPremium) return null;
+    
+    // Find the guest object to get the guest ID
+    const guest = state.guests.find(g => g.name === guestName);
+    if (!guest) return { text: 'unassigned', type: 'none' as const };
+    
+    // Check for user-assigned table numbers first (by guest name)
     if ((state as any).assignments && (state as any).assignments[guestName]) {
       const assignedTableIds = (state as any).assignments[guestName].split(',').map((t: string) => t.trim());
+      const tablenames = assignedTableIds.map((id: string) => {
+        const numId = parseInt(id);
+        if (!isNaN(numId)) {
+          const table = state.tables.find((t: any) => t.id === numId);
+          return table?.name ? `${table.name} (${numId})` : `${numId}`;
+        }
+        return id;
+      });
+      return { text: tablenames.join(', '), type: 'assigned' as const };
+    }
+    
+    // Also check by guest ID (in case assignments are stored by ID)
+    if ((state as any).assignments && (state as any).assignments[guest.id]) {
+      const assignedTableIds = (state as any).assignments[guest.id].split(',').map((t: string) => t.trim());
       const tablenames = assignedTableIds.map((id: string) => {
         const numId = parseInt(id);
         if (!isNaN(numId)) {

@@ -742,9 +742,27 @@ const GuestManager: React.FC = () => {
 
   // Helper function to get table assignment display info
   const getGuestTableAssignment = (guestName: string) => {
-    // Check for user-assigned table numbers first
+    // Find the guest object to get the guest ID
+    const guest = state.guests.find(g => g.name === guestName);
+    if (!guest) return { text: 'Unassigned', type: 'none' as const };
+    
+    // Check for user-assigned table numbers first (by guest name)
     if (state.assignments && state.assignments[guestName]) {
       const assignedTableIds = state.assignments[guestName].split(',').map((t: string) => t.trim());
+      const tableNames = assignedTableIds.map((id: string) => {
+        const numId = parseInt(id);
+        if (!isNaN(numId)) {
+          const table = state.tables.find((t: any) => t.id === numId);
+          return table?.name ? `${table.name} (${numId})` : `Table ${numId}`;
+        }
+        return id;
+      });
+      return { text: tableNames.join(', '), type: 'assigned' as const };
+    }
+    
+    // Also check by guest ID (in case assignments are stored by ID)
+    if (state.assignments && state.assignments[guest.id]) {
+      const assignedTableIds = state.assignments[guest.id].split(',').map((t: string) => t.trim());
       const tableNames = assignedTableIds.map((id: string) => {
         const numId = parseInt(id);
         if (!isNaN(numId)) {
