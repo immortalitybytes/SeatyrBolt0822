@@ -51,13 +51,51 @@ export async function generateSeatingPlans(
             capacity: t.seats
         }));
 
+        // Convert guest names to guest IDs in constraints
+        const nameToIdMap = new Map<string, string>();
+        appGuests.forEach(guest => {
+            nameToIdMap.set(guest.name, guest.id);
+        });
+
+        const engineConstraints: Engine.ConstraintsMap = {};
+        Object.entries(appConstraints).forEach(([guestName, constraints]) => {
+            const guestId = nameToIdMap.get(guestName);
+            if (guestId) {
+                engineConstraints[guestId] = {};
+                Object.entries(constraints).forEach(([otherGuestName, value]) => {
+                    const otherGuestId = nameToIdMap.get(otherGuestName);
+                    if (otherGuestId) {
+                        engineConstraints[guestId][otherGuestId] = value;
+                    }
+                });
+            }
+        });
+
+        // Convert guest names to guest IDs in adjacents
+        const engineAdjacents: Engine.AdjRecord = {};
+        Object.entries(appAdjacents).forEach(([guestName, adjacentNames]) => {
+            const guestId = nameToIdMap.get(guestName);
+            if (guestId) {
+                engineAdjacents[guestId] = adjacentNames.map(name => nameToIdMap.get(name) || name);
+            }
+        });
+
+        // Convert guest names to guest IDs in assignments
+        const engineAssignments: Engine.AssignmentsIn = {};
+        Object.entries(appAssignments).forEach(([guestName, assignment]) => {
+            const guestId = nameToIdMap.get(guestName);
+            if (guestId) {
+                engineAssignments[guestId] = assignment;
+            }
+        });
+
         // =========== CALL THE CORE ENGINE ===========
         const result = await Engine.generateSeatingPlans(
             engineGuests,
             engineTables,
-            appConstraints,
-            appAdjacents,
-            appAssignments,
+            engineConstraints,
+            engineAdjacents,
+            engineAssignments,
             isPremium
         );
 
@@ -158,11 +196,40 @@ export function detectConstraintConflicts(
     const engineGuests: Engine.GuestUnit[] = guests;
     const engineTables: Engine.TableIn[] = tables.map(t => ({ id: t.id, name: t.name ?? undefined, seats: t.seats, capacity: t.seats }));
     
+    // Convert guest names to guest IDs in constraints
+    const nameToIdMap = new Map<string, string>();
+    guests.forEach(guest => {
+        nameToIdMap.set(guest.name, guest.id);
+    });
+
+    const engineConstraints: Engine.ConstraintsMap = {};
+    Object.entries(constraints).forEach(([guestName, constraintObj]) => {
+        const guestId = nameToIdMap.get(guestName);
+        if (guestId) {
+            engineConstraints[guestId] = {};
+            Object.entries(constraintObj).forEach(([otherGuestName, value]) => {
+                const otherGuestId = nameToIdMap.get(otherGuestName);
+                if (otherGuestId) {
+                    engineConstraints[guestId][otherGuestId] = value;
+                }
+            });
+        }
+    });
+
+    // Convert guest names to guest IDs in adjacents
+    const engineAdjacents: Engine.AdjRecord = {};
+    Object.entries(adjacents).forEach(([guestName, adjacentNames]) => {
+        const guestId = nameToIdMap.get(guestName);
+        if (guestId) {
+            engineAdjacents[guestId] = adjacentNames.map(name => nameToIdMap.get(name) || name);
+        }
+    });
+    
     const engineErrors = Engine.detectConstraintConflicts(
         engineGuests,
         engineTables,
-        constraints,
-        adjacents,
+        engineConstraints,
+        engineAdjacents,
         {} // assignments are not part of this legacy signature
     );
     
