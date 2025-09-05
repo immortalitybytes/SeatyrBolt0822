@@ -33,12 +33,12 @@ import * as Engine from './seatingAlgorithm.engine';
  * @returns {Promise<{ plans: SeatingPlan[]; errors: ValidationError[] }>} A promise resolving to the generated plans and errors in the application's native format.
  */
 export async function generateSeatingPlans(
-    appGuests: Guest[],
-    appTables: Table[],
+  appGuests: Guest[],
+  appTables: Table[],
     appConstraints: Constraints,
     appAdjacents: Adjacents,
     appAssignments: Assignments,
-    isPremium: boolean = false
+  isPremium: boolean = false
 ): Promise<{ plans: SeatingPlan[]; errors: ValidationError[] }> {
     console.time('SeatingGeneration');
     try {
@@ -58,7 +58,7 @@ export async function generateSeatingPlans(
         });
 
         const engineConstraints: Engine.ConstraintsMap = {};
-        Object.entries(appConstraints).forEach(([guestName, constraints]) => {
+        Object.entries(appConstraints ?? {}).forEach(([guestName, constraints]) => {
             const guestId = nameToIdMap.get(guestName);
             if (guestId) {
                 engineConstraints[guestId] = {};
@@ -73,7 +73,7 @@ export async function generateSeatingPlans(
 
         // Convert guest names to guest IDs in adjacents
         const engineAdjacents: Engine.AdjRecord = {};
-        Object.entries(appAdjacents).forEach(([guestName, adjacentNames]) => {
+        Object.entries(appAdjacents ?? {}).forEach(([guestName, adjacentNames]) => {
             const guestId = nameToIdMap.get(guestName);
             if (guestId) {
                 engineAdjacents[guestId] = adjacentNames.map(name => nameToIdMap.get(name) || name);
@@ -82,7 +82,7 @@ export async function generateSeatingPlans(
 
         // Convert guest names to guest IDs in assignments
         const engineAssignments: Engine.AssignmentsIn = {};
-        Object.entries(appAssignments).forEach(([guestName, assignment]) => {
+        Object.entries(appAssignments ?? {}).forEach(([guestName, assignment]) => {
             const guestId = nameToIdMap.get(guestName);
             if (guestId && assignment) {
                 // Convert comma-separated string to array of table IDs
@@ -125,7 +125,7 @@ export async function generateSeatingPlans(
             type: mapErrorType(error.kind), // Convert `kind` to `type: 'error' | 'warn'`
             message: error.message,
             // Preserve rich error details in development for easier debugging
-            ...(process.env.NODE_ENV === 'development' && {
+            ...(import.meta?.env?.DEV && {
                 _originalKind: error.kind,
                 _details: error.details
             })
@@ -135,7 +135,7 @@ export async function generateSeatingPlans(
         return { plans: finalPlans, errors: finalErrors };
 
     } catch (e) {
-        console.error('The seating algorithm engine encountered a fatal error:', e);
+        console.error('The seating algorithm engine encountered a fatal error:', e, e instanceof Error ? e.stack : '');
         console.timeEnd('SeatingGeneration');
         // A real implementation could call a legacy algorithm here as a fallback.
         return {
@@ -212,7 +212,7 @@ export function detectConstraintConflicts(
     });
 
     const engineConstraints: Engine.ConstraintsMap = {};
-    Object.entries(constraints).forEach(([guestName, constraintObj]) => {
+    Object.entries(constraints ?? {}).forEach(([guestName, constraintObj]) => {
         const guestId = nameToIdMap.get(guestName);
         if (guestId) {
             engineConstraints[guestId] = {};
@@ -227,7 +227,7 @@ export function detectConstraintConflicts(
 
     // Convert guest names to guest IDs in adjacents
     const engineAdjacents: Engine.AdjRecord = {};
-    Object.entries(adjacents).forEach(([guestName, adjacentNames]) => {
+    Object.entries(adjacents ?? {}).forEach(([guestName, adjacentNames]) => {
         const guestId = nameToIdMap.get(guestName);
         if (guestId) {
             engineAdjacents[guestId] = adjacentNames.map(name => nameToIdMap.get(name) || name);
@@ -245,7 +245,7 @@ export function detectConstraintConflicts(
     return engineErrors.map(err => ({ 
         type: mapErrorType(err.kind), 
         message: err.message,
-        ...(process.env.NODE_ENV === 'development' && {
+        ...(import.meta?.env?.DEV && {
             _originalKind: err.kind,
             _details: err.details
         })
