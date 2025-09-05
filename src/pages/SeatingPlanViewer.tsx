@@ -22,7 +22,7 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     const hasPlusOne = hasAdditionSignifier && 
                       (originalName.includes('+1') || 
                        originalName.includes('&1') || 
-                       /\b(?:and|plus)\s+(?:one|1)\b/i.test(originalName));
+                       /(?:and|plus)\s*(?:one|1)/i.test(originalName));
     
     // Calculate total seats needed
     const totalSeats = baseTokens.length + extraTokens.length;
@@ -50,7 +50,7 @@ const formatGuestNameForSeat = (rawName: string, seatIndex: number): React.React
     if (hasAdditionSignifier) {
       if (hasPlusOne) {
         // Special case: For "+1", convert to "plus One" format on ALL cells
-        const displayName = originalName.replace(/\+1|\&1|\b(?:and|plus)\s+(?:one|1)\b/gi, ' plus One');
+        const displayName = originalName.replace(/\+1|\&1|(?:and|plus)\s*(?:one|1)/gi, ' plus One');
         
         if (seatIndex < baseTokens.length) {
           // For base name seats, show the full display name with proper bolding
