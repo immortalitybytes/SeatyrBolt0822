@@ -84,8 +84,17 @@ export async function generateSeatingPlans(
         const engineAssignments: Engine.AssignmentsIn = {};
         Object.entries(appAssignments).forEach(([guestName, assignment]) => {
             const guestId = nameToIdMap.get(guestName);
-            if (guestId) {
-                engineAssignments[guestId] = assignment;
+            if (guestId && assignment) {
+                // Convert comma-separated string to array of table IDs
+                const tableIds = String(assignment)
+                    .split(',')
+                    .map(id => id.trim())
+                    .filter(Boolean)
+                    .map(id => String(id)); // Convert to string for engine
+                
+                if (tableIds.length > 0) {
+                    engineAssignments[guestId] = tableIds;
+                }
             }
         });
 
