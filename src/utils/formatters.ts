@@ -32,7 +32,7 @@ export function getLastNameForSorting(fullName: string): string {
   }
   
   // 2.a.) Priority: Look for first instance of word prefixed with % character
-  const percentMatch = trimmedName.match(/%(\w+)/);
+  const percentMatch = trimmedName.match(/%([A-Za-z][\w-]*)/);
   if (percentMatch) {
     return percentMatch[1];
   }
@@ -44,7 +44,10 @@ export function getLastNameForSorting(fullName: string): string {
   
   // Find the first multi-word part (more than one word)
   for (const part of parts) {
-    const words = part.trim().split(/\s+/).filter(word => word.length > 0);
+    const words = part
+      .trim()
+      .split(/\s+/)
+      .filter(w => w.length > 0 && !/^(?:&|\+|and|plus)$/i.test(w));
     if (words.length > 1) {
       // Return the last word of the first multi-word part
       return words[words.length - 1];

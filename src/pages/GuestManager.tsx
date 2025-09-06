@@ -584,40 +584,23 @@ const GuestManager: React.FC = () => {
     // Hide arrows immediately when button is clicked
     hideArrows();
     
-    const testGuests = [
-      { id: 'guest_test_1', name: 'Terry Ericsson', count: 1 },
-      { id: 'guest_test_2', name: 'Madonna', count: 1 },
-      { id: 'guest_test_3', name: 'Wei & Sara Chen', count: 2 },
-      { id: 'guest_test_4', name: 'Sarah&Bobby Williams+1', count: 3 },
-      { id: 'guest_test_5', name: 'Carlos Rodriguez+2', count: 3 },
-      { id: 'guest_test_6', name: 'Emily Davis& 2', count: 3 },
-      { id: 'guest_test_7', name: 'Raj Patel +1', count: 2 },
-      { id: 'guest_test_8', name: 'Ashley Brown &1', count: 2 },
-      { id: 'guest_test_9', name: 'Javier Conseco & Billy & Jessica Li', count: 3 },
-      { id: 'guest_test_10', name: 'David Lee + 1', count: 2 },
-      { id: 'guest_test_11', name: 'Michelle Terrence+ 1', count: 2 },
-      { id: 'guest_test_12', name: 'Luis Hernandez', count: 1 },
-      { id: 'guest_test_13', name: 'Amanda Jessica %Zeta Taylor+ 2', count: 3 },
-      { id: 'guest_test_14', name: 'Priya Sharma plus 1', count: 2 },
-      { id: 'guest_test_15', name: 'Michael Lee + 2', count: 3 },
-      { id: 'guest_test_16', name: 'Ana Macron plus 1', count: 2 },
-      { id: 'guest_test_17', name: 'Christopher Anderson + 2', count: 3 },
-      { id: 'guest_test_18', name: 'Mo Rashid', count: 1 },
-      { id: 'guest_test_19', name: 'Cher', count: 1 },
-      { id: 'guest_test_20', name: 'Tyler Goldberg+3', count: 4 },
-      { id: 'guest_test_21', name: 'Stephanie & Robert Jackson', count: 2 },
-      { id: 'guest_test_22', name: 'Nicole White', count: 1 },
-      { id: 'guest_test_23', name: 'Diego Thunberg', count: 1 },
-      { id: 'guest_test_24', name: 'Jin Wang', count: 1 },
-      { id: 'guest_test_25', name: 'Rachel Franklin', count: 1 },
-      { id: 'guest_test_26', name: 'Ian Franklin+1', count: 2 },
-      { id: 'guest_test_27', name: 'Zander & Victoria Lee', count: 2 },
-      { id: 'guest_test_28', name: 'Sergio Gambuto', count: 1 },
-      { id: 'guest_test_29', name: 'Kayla & Daveed Lopez', count: 2 },
-      { id: 'guest_test_30', name: 'Ravi Berns-Krishnan+wife', count: 2 },
-      { id: 'guest_test_31', name: 'Kenji Nakamura+2', count: 3 },
-      { id: 'guest_test_32', name: 'Megan Kaczmarek', count: 1 }
+    const names = [
+      "Terry Ericsson", "Madonna", "Wei & Sara Chen", "Sarah&Bobby Williams+1",
+      "Carlos Rodriguez+2", "Emily Davis& 2", "Raj Patel +1", "Ashley Brown &1",
+      "Javier Conseco & Billy & Jessica Li", "David & Vivian Lee",
+      "Michelle Terrence+ 1", "Luis Hernandez",
+      "Amanda Jessica %Zeta Taylor+ 2", "Priya Sharma plus 1", "Michael Lee + 2",
+      "Ana Macron plus 1", "Christopher Anderson + 2", "Mo Rashid", "Cher",
+      "Tyler Goldberg+3", "Stephanie & Robert Jackson", "Nicole White",
+      "Diego Thunberg", "Jin Wang", "Rachel Franklin", "Ian Franklin+1",
+      "Zander & Victoria Lee", "Sergio Gambuto", "Kayla & Daveed Lopez",
+      "Ravi Berns-Krishnan+wife", "Kenji Nakamura+2", "Megan Kaczmarek"
     ];
+    const testGuests = names.map((name, idx) => ({
+      id: `guest_test_${idx+1}`,
+      name,
+      count: countHeads(name),
+    }));
     
     // Clear existing guests and add test list
     dispatch({ type: 'SET_GUESTS', payload: testGuests });
@@ -818,12 +801,8 @@ const GuestManager: React.FC = () => {
         return firstNameA.localeCompare(firstNameB);
       } 
       else if (sortOption === 'last-name') {
-        // For guests with ampersands, only use the part before the ampersand for sorting
-        const getLastName = (fullName: string) => {
-          // Extract the first person's name (before any ampersand)
-          const firstPersonName = fullName.split('&')[0].trim();
-          return getLastNameForSorting(firstPersonName).toLowerCase();
-        };
+        const getLastName = (fullName: string) =>
+          getLastNameForSorting(fullName).toLowerCase();
         
         const lastNameA = getLastName(a.name);
         const lastNameB = getLastName(b.name);
