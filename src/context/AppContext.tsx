@@ -469,7 +469,7 @@ const reducer = (state: AppState, action: AppAction): AppState => {
       newState = {
         ...state,
         assignments: newAssignments,
-        assignmentSignature: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        assignmentSignature: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
       };
       break;
     }

@@ -489,7 +489,7 @@ const GuestManager: React.FC = () => {
       return names.map(name => {
         // Use the enhanced countHeads function for accurate seat counting
         const count = countHeads(name);
-        return { id: `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, name, count };
+        return { id: `guest_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`, name, count };
       }).filter(g => g.name);
     } catch (e) {
       console.error('Error parsing input:', e);
