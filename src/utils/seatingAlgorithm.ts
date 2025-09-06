@@ -87,7 +87,7 @@ export async function generateSeatingPlans(
             let guestId = key;
             
             // Check if the key is a guest ID (exists in guest list)
-            if (!appGuests.some(g => g.id === key)) {
+            if (!appGuests.some(g => g.id && g.id === key)) {
                 // If not found as ID, try to find by name (backwards compatibility)
                 guestId = nameToIdMap.get(key) || '';
             }
