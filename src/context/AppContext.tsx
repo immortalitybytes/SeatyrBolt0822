@@ -111,7 +111,7 @@ type AppAction =
   | { type: 'REMOVE_TABLE'; payload: number }
   | { type: 'UPDATE_TABLE_SEATS'; payload: { id: number; seats: number } }
   | { type: 'UPDATE_TABLE_NAME'; payload: { id: number; name?: string } }
-  | { type: 'UPDATE_ASSIGNMENT'; payload: { name: string; tables: string } }
+  | { type: 'UPDATE_ASSIGNMENT'; payload: { name?: string; id?: string; tables: string } }
   | { type: 'SET_SEATING_PLANS'; payload: SeatingPlan[] }
   | { type: 'SET_CURRENT_PLAN_INDEX'; payload: number }
   | { type: 'SET_SUBSCRIPTION'; payload: UserSubscription | null }
@@ -141,7 +141,8 @@ const initialState: AppState = {
   loadedSavedSetting: false,
   isSupabaseConnected: false,
   hideTableReductionNotice: false,
-  duplicateGuests: []
+  duplicateGuests: [],
+  assignmentSignature: 'initial'
 };
 
 const loadSavedState = (): AppState => {
@@ -450,19 +451,25 @@ const reducer = (state: AppState, action: AppAction): AppState => {
 
     case 'UPDATE_ASSIGNMENT': {
       const newAssignments = { ...state.assignments };
-      if (!action.payload.name) {
-        console.warn('UPDATE_ASSIGNMENT: empty guest name');
+      
+      // Support both new id-based format and legacy name-based format for backwards compatibility
+      const assignmentKey = action.payload.id || action.payload.name;
+      
+      if (!assignmentKey) {
+        console.warn('UPDATE_ASSIGNMENT: empty guest identifier');
         return state;
       }
+      
       if (action.payload.tables) {
-        newAssignments[action.payload.name] = action.payload.tables;
+        newAssignments[assignmentKey] = action.payload.tables;
       } else {
-        delete newAssignments[action.payload.name];
+        delete newAssignments[assignmentKey];
       }
 
       newState = {
         ...state,
         assignments: newAssignments,
+        assignmentSignature: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
       break;
     }

@@ -207,10 +207,10 @@ const TableManager: React.FC = () => {
   };
 
   // Functions for Assignment Manager functionality
-  const handleUpdateAssignment = (guestName: string, value: string) => {
+  const handleUpdateAssignment = (guestId: string, value: string) => {
         dispatch({
           type: 'UPDATE_ASSIGNMENT',
-      payload: { name: guestName, tables: value }
+      payload: { id: guestId, tables: value }
     });
     purgePlans();
   };
@@ -238,16 +238,21 @@ const TableManager: React.FC = () => {
     }).join(', ');
   };
 
-  const currentTableKey = (name: string, plan: { tables: { id: number; seats: any[] }[] } | null) => {
+  const currentTableKey = (guestName: string, plan: { tables: { id: number; seats: any[] }[] } | null) => {
     if (plan?.tables) {
-      if (plan.tables.some(t => t.seats.some(s => s.name === name))) {
-        return plan.tables.find(t => t.seats.some(s => s.name === name))!.id;
+      if (plan.tables.some(t => t.seats.some(s => s.name === guestName))) {
+        return plan.tables.find(t => t.seats.some(s => s.name === guestName))!.id;
       }
     }
-    const raw = state.assignments[name];
-    if (raw) {
-      const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
-      if (ids.length) return ids[0];
+    
+    // Find guest by name to get their ID for assignment lookup
+    const guest = state.guests.find(g => g.name === guestName);
+    if (guest) {
+      const raw = state.assignments[guest.id];
+      if (raw) {
+        const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(Number.isFinite);
+        if (ids.length) return ids[0];
+      }
     }
     return Number.POSITIVE_INFINITY;
   };
@@ -471,7 +476,7 @@ const TableManager: React.FC = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">Table Assignment</label>
-                          <input type="text" value={state.assignments[guest.name] || ''} onChange={e => handleUpdateAssignment(guest.name, e.target.value)} className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" placeholder="e.g., 1, 3, 5" />
+                          <input type="text" value={state.assignments[guest.id] || ''} onChange={e => handleUpdateAssignment(guest.id, e.target.value)} className="w-full border-2 border-gray-300 rounded px-2 py-1 text-sm" placeholder="e.g., 1, 3, 5" />
                           {state.tables.length > 0 && <p className="text-xs text-gray-500 mt-1">Available: {getTableList()}</p>}
                         </div>
                         <div>

@@ -80,10 +80,18 @@ export async function generateSeatingPlans(
             }
         });
 
-        // Convert guest names to guest IDs in assignments
+        // Convert guest names/IDs to guest IDs in assignments
         const engineAssignments: Engine.AssignmentsIn = {};
-        Object.entries(appAssignments ?? {}).forEach(([guestName, assignment]) => {
-            const guestId = nameToIdMap.get(guestName);
+        Object.entries(appAssignments ?? {}).forEach(([key, assignment]) => {
+            // Handle both new ID-based format and legacy name-based format
+            let guestId = key;
+            
+            // Check if the key is a guest ID (exists in guest list)
+            if (!appGuests.some(g => g.id === key)) {
+                // If not found as ID, try to find by name (backwards compatibility)
+                guestId = nameToIdMap.get(key) || '';
+            }
+            
             if (guestId && assignment) {
                 // Convert comma-separated string to array of table IDs
                 const tableIds = String(assignment)
@@ -262,7 +270,7 @@ export function detectAdjacentPairingConflicts(
     constraints?: Constraints
 ): ValidationError[] {
     const allErrors = detectConstraintConflicts(guests, tables, constraints || {}, true, adjacents);
-    const mappedErrors = allErrors as (ValidationError & { _originalKind?: Engine.ConflictKind }[]);
+    const mappedErrors = allErrors as Array<ValidationError & { _originalKind?: Engine.ConflictKind }>;
 
     // This wrapper is robust, filtering by error kind, not a fragile message string.
     return mappedErrors.filter(e => 

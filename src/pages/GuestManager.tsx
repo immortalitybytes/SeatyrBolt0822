@@ -725,18 +725,32 @@ const GuestManager: React.FC = () => {
   };
 
   // Helper function for current table sorting
-  const currentTableKey = (name: string, plan: { tables: { id: number; seats: any[] }[] } | null, assigns: Record<string, string> | undefined) => {
+  const currentTableKey = (guestName: string, plan: { tables: { id: number; seats: any[] }[] } | null, assigns: Record<string, string> | undefined) => {
     if (plan?.tables) {
       for (const t of plan.tables) {
         const names = (t.seats || []).map((s: any) => typeof s === 'string' ? s : s?.name).filter(Boolean);
-        if (names.includes(name)) return t.id;
+        if (names.includes(guestName)) return t.id;
       }
     }
-    const raw = assigns?.[name];
-    if (raw) {
-      const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n));
-      if (ids.length) return ids[0];
+    
+    // Find guest by name to get their ID for assignment lookup
+    const guest = state.guests.find(g => g.name === guestName);
+    if (guest && assigns) {
+      // Check by guest ID first (primary method)
+      const raw = assigns[guest.id];
+      if (raw) {
+        const ids = raw.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n));
+        if (ids.length) return ids[0];
+      }
+      
+      // Fallback: check by guest name for backwards compatibility
+      const rawByName = assigns[guestName];
+      if (rawByName) {
+        const ids = rawByName.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !Number.isNaN(n));
+        if (ids.length) return ids[0];
+      }
     }
+    
     return Number.POSITIVE_INFINITY;
   };
 
@@ -746,9 +760,9 @@ const GuestManager: React.FC = () => {
     const guest = state.guests.find(g => g.name === guestName);
     if (!guest) return { text: 'Unassigned', type: 'none' as const };
     
-    // Check for user-assigned table numbers first (by guest name)
-    if (state.assignments && state.assignments[guestName]) {
-      const assignedTableIds = state.assignments[guestName].split(',').map((t: string) => t.trim());
+    // Check for user-assigned table numbers first (by guest ID - primary method)
+    if (state.assignments && state.assignments[guest.id]) {
+      const assignedTableIds = state.assignments[guest.id].split(',').map((t: string) => t.trim());
       const tableNames = assignedTableIds.map((id: string) => {
         const numId = parseInt(id);
         if (!isNaN(numId)) {
@@ -760,9 +774,9 @@ const GuestManager: React.FC = () => {
       return { text: tableNames.join(', '), type: 'assigned' as const };
     }
     
-    // Also check by guest ID (in case assignments are stored by ID)
-    if (state.assignments && state.assignments[guest.id]) {
-      const assignedTableIds = state.assignments[guest.id].split(',').map((t: string) => t.trim());
+    // Fallback: Check by guest name for backwards compatibility with old assignments
+    if (state.assignments && state.assignments[guestName]) {
+      const assignedTableIds = state.assignments[guestName].split(',').map((t: string) => t.trim());
       const tableNames = assignedTableIds.map((id: string) => {
         const numId = parseInt(id);
         if (!isNaN(numId)) {

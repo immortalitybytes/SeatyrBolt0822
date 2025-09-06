@@ -181,9 +181,9 @@ const ConstraintManager: React.FC = () => {
     const guest = state.guests.find(g => g.name === guestName);
     if (!guest) return { text: 'unassigned', type: 'none' as const };
     
-    // Check for user-assigned table numbers first (by guest name)
-    if ((state as any).assignments && (state as any).assignments[guestName]) {
-      const assignedTableIds = (state as any).assignments[guestName].split(',').map((t: string) => t.trim());
+    // Check for user-assigned table numbers first (by guest ID - primary method)
+    if ((state as any).assignments && (state as any).assignments[guest.id]) {
+      const assignedTableIds = (state as any).assignments[guest.id].split(',').map((t: string) => t.trim());
       const tablenames = assignedTableIds.map((id: string) => {
         const numId = parseInt(id);
         if (!isNaN(numId)) {
@@ -195,9 +195,9 @@ const ConstraintManager: React.FC = () => {
       return { text: tablenames.join(', '), type: 'assigned' as const };
     }
     
-    // Also check by guest ID (in case assignments are stored by ID)
-    if ((state as any).assignments && (state as any).assignments[guest.id]) {
-      const assignedTableIds = (state as any).assignments[guest.id].split(',').map((t: string) => t.trim());
+    // Fallback: Check by guest name for backwards compatibility with old assignments
+    if ((state as any).assignments && (state as any).assignments[guestName]) {
+      const assignedTableIds = (state as any).assignments[guestName].split(',').map((t: string) => t.trim());
       const tablenames = assignedTableIds.map((id: string) => {
         const numId = parseInt(id);
         if (!isNaN(numId)) {
